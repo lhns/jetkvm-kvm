@@ -48,12 +48,17 @@ export default function KvmCard({
   online,
   lastSeen,
   appVersion,
+  shared = false,
+  ownerEmail,
 }: {
   title: string;
   id: string;
   online: boolean;
   lastSeen: Date | null;
   appVersion?: string;
+  // Shared with this user: the owner-only menu (rename, share, deregister) is hidden.
+  shared?: boolean;
+  ownerEmail?: string;
 }) {
   const kvmUrl = useMemo(() => buildCloudUrl(id, appVersion), [id, appVersion]);
 
@@ -63,6 +68,11 @@ export default function KvmCard({
         <div className="flex items-center justify-between">
           <div className="space-y-1.5">
             <div className="text-lg leading-none font-bold text-black dark:text-white">{title}</div>
+            {shared && (
+              <div className="text-xs text-slate-600 dark:text-slate-400">
+                {ownerEmail ? m.shared_by({ email: ownerEmail }) : m.shared()}
+              </div>
+            )}
 
             {online ? (
               <div className="flex items-center gap-x-1.5">
@@ -106,51 +116,67 @@ export default function KvmCard({
               />
             )}
           </div>
-          <Menu as="div" className="relative inline-block text-left">
-            <MenuButton
-              as={Button}
-              theme="light"
-              TrailingIcon={LuEllipsisVertical}
-              size="MD"
-            ></MenuButton>
-            <MenuItems
-              transition
-              className="data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in"
-            >
-              <Card className="absolute right-0 z-10 mt-2 w-56 origin-top-right px-1 ring-1 ring-black/50 transition focus:outline-hidden">
-                <div className="divide-y divide-slate-800/20 dark:divide-slate-300/20">
-                  <MenuItem>
-                    <div>
-                      <div className="block w-full">
-                        <div className="my-1 flex items-center gap-x-2 rounded-md px-2 text-sm transition-colors hover:bg-slate-100 dark:hover:bg-slate-700">
-                          <Link
-                            className="block w-full py-1.5 text-black dark:text-white"
-                            to={`./${id}/rename`}
-                          >
-                            {m.rename_device()}
-                          </Link>
+          {!shared && (
+            <Menu as="div" className="relative inline-block text-left">
+              <MenuButton
+                as={Button}
+                theme="light"
+                TrailingIcon={LuEllipsisVertical}
+                size="MD"
+              ></MenuButton>
+              <MenuItems
+                transition
+                className="data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in"
+              >
+                <Card className="absolute right-0 z-10 mt-2 w-56 origin-top-right px-1 ring-1 ring-black/50 transition focus:outline-hidden">
+                  <div className="divide-y divide-slate-800/20 dark:divide-slate-300/20">
+                    <MenuItem>
+                      <div>
+                        <div className="block w-full">
+                          <div className="my-1 flex items-center gap-x-2 rounded-md px-2 text-sm transition-colors hover:bg-slate-100 dark:hover:bg-slate-700">
+                            <Link
+                              className="block w-full py-1.5 text-black dark:text-white"
+                              to={`./${id}/rename`}
+                            >
+                              {m.rename_device()}
+                            </Link>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </MenuItem>
-                  <MenuItem>
-                    <div>
-                      <div className="block w-full">
-                        <div className="my-1 flex items-center gap-x-2 rounded-md px-2 text-sm transition-colors hover:bg-slate-100 dark:hover:bg-slate-700">
-                          <Link
-                            className="block w-full py-1.5 text-black dark:text-white"
-                            to={`./${id}/deregister`}
-                          >
-                            {m.deregister_from_cloud()}
-                          </Link>
+                    </MenuItem>
+                    <MenuItem>
+                      <div>
+                        <div className="block w-full">
+                          <div className="my-1 flex items-center gap-x-2 rounded-md px-2 text-sm transition-colors hover:bg-slate-100 dark:hover:bg-slate-700">
+                            <Link
+                              className="block w-full py-1.5 text-black dark:text-white"
+                              to={`./${id}/share`}
+                            >
+                              {m.share_device()}
+                            </Link>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </MenuItem>
-                </div>
-              </Card>
-            </MenuItems>
-          </Menu>
+                    </MenuItem>
+                    <MenuItem>
+                      <div>
+                        <div className="block w-full">
+                          <div className="my-1 flex items-center gap-x-2 rounded-md px-2 text-sm transition-colors hover:bg-slate-100 dark:hover:bg-slate-700">
+                            <Link
+                              className="block w-full py-1.5 text-black dark:text-white"
+                              to={`./${id}/deregister`}
+                            >
+                              {m.deregister_from_cloud()}
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    </MenuItem>
+                  </div>
+                </Card>
+              </MenuItems>
+            </Menu>
+          )}
         </div>
       </div>
     </Card>

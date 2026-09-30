@@ -28,6 +28,7 @@ import AdoptRoute from "@routes/adopt";
 import SetupRoute from "@routes/devices.$id.setup";
 import DevicesIdDeregister from "@routes/devices.$id.deregister";
 import DeviceIdRename from "@routes/devices.$id.rename";
+import DeviceIdShare from "@routes/devices.$id.share";
 import DevicesRoute from "@routes/devices";
 import SettingsIndexRoute from "@routes/devices.$id.settings._index";
 import SettingsAccessIndexRoute from "@routes/devices.$id.settings.access._index";
@@ -289,6 +290,12 @@ if (isOnDevice) {
               action: DeviceIdRename.action,
             },
             {
+              path: "devices/:id/share",
+              element: <DeviceIdShare />,
+              loader: DeviceIdShare.loader,
+              action: DeviceIdShare.action,
+            },
+            {
               path: "devices",
               element: <DevicesRoute />,
               loader: DevicesRoute.loader,
@@ -310,7 +317,9 @@ if (isOnDevice) {
     });
   }
 
-  router = createBrowserRouter(routeObjects, { basename: import.meta.env.BASE_URL });
+  router = createBrowserRouter(routeObjects, {
+    basename: import.meta.env.BASE_URL,
+  });
 }
 
 document.addEventListener("DOMContentLoaded", () => {

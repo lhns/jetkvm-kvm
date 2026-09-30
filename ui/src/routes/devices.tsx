@@ -19,6 +19,8 @@ interface LoaderData {
     online: boolean;
     lastSeen: string;
     version: string;
+    shared: boolean;
+    ownerEmail?: string;
   }[];
   user: User;
 }
@@ -93,6 +95,8 @@ export default function DevicesRoute() {
                       lastSeen={x.lastSeen ? new Date(x.lastSeen) : null}
                       online={x.online}
                       appVersion={x.version}
+                      shared={x.shared}
+                      ownerEmail={x.ownerEmail}
                     />
                   );
                 })}
