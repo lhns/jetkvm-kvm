@@ -1,0 +1,26 @@
+name: UI
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      # Same mode and API URL as the cluster's image build.
+      - run: npm run build:prod
+        env:
+          VITE_CLOUD_API: https://jetkvm-api.lhns.de
+      - run: grep -rlq "https://jetkvm-api.lhns.de" dist
