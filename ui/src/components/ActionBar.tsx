@@ -5,6 +5,7 @@ import {
   LuExternalLink,
   LuHardDrive,
   LuMaximize,
+  LuMinimize,
   LuScanText,
   LuSettings,
   LuSignal,
@@ -36,9 +37,11 @@ import { JsonRpcResponse, useJsonRpc } from "@hooks/useJsonRpc";
 import { m } from "@localizations/messages.js";
 
 export default function Actionbar({
-  requestFullscreen,
+  isFullscreen,
+  toggleFullscreen,
 }: {
-  requestFullscreen: () => Promise<void>;
+  isFullscreen: boolean;
+  toggleFullscreen: () => Promise<void>;
 }) {
   const { navigateTo } = useDeviceUiNavigation();
   const { isVirtualKeyboardEnabled, setVirtualKeyboardEnabled } = useHidStore();
@@ -336,23 +339,19 @@ export default function Actionbar({
             </div>
           )}
 
-          <div className="hidden items-center gap-x-2 md:flex">
-            <div className="h-4 w-px bg-slate-300 dark:bg-slate-600" />
-            {isEmbedMode ? (
-              <Button
-                size="XS"
-                theme="light"
-                text={m.close()}
-                LeadingIcon={LuX}
-                onClick={() => window.close()}
+          {/* Fullscreen is shown at every width and in embed mode: it is the main control. */}
+          <div className="flex items-center gap-x-2">
+            <div className="hidden h-4 w-px bg-slate-300 md:block dark:bg-slate-600" />
+            <SplitButtonGroup>
+              <SplitButtonPrimary
+                icon={isFullscreen ? LuMinimize : LuMaximize}
+                label={isFullscreen ? m.action_bar_exit_fullscreen() : m.action_bar_fullscreen()}
+                title={isFullscreen ? m.action_bar_exit_fullscreen() : m.action_bar_fullscreen()}
+                labelClassName="hidden md:inline"
+                className={cx({ "rounded-sm border-r": isEmbedMode })}
+                onClick={() => toggleFullscreen()}
               />
-            ) : (
-              <SplitButtonGroup>
-                <SplitButtonPrimary
-                  icon={LuMaximize}
-                  label={m.action_bar_fullscreen()}
-                  onClick={() => requestFullscreen()}
-                />
+              {!isEmbedMode && (
                 <SplitButtonCaret
                   menuItems={[
                     {
@@ -366,7 +365,16 @@ export default function Actionbar({
                     },
                   ]}
                 />
-              </SplitButtonGroup>
+              )}
+            </SplitButtonGroup>
+            {isEmbedMode && (
+              <Button
+                size="XS"
+                theme="light"
+                text={m.close()}
+                LeadingIcon={LuX}
+                onClick={() => window.close()}
+              />
             )}
           </div>
         </div>

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router";
 import { useResizeObserver } from "usehooks-ts";
+import { LuMinimize } from "react-icons/lu";
 
 import { cx } from "@/cva.config";
 import { isWindows } from "@/utils";
@@ -20,6 +22,17 @@ import OcrOverlay from "@components/OcrOverlay";
 import { keys } from "@/keyboardMappings";
 import notifications from "@/notifications";
 import { m } from "@localizations/messages.js";
+
+// The webkit-prefixed variants are all older iPad Safari offers.
+type WebkitDocument = Document & {
+  webkitFullscreenEnabled?: boolean;
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => void;
+};
+type WebkitElement = HTMLElement & { webkitRequestFullscreen?: () => void };
+const webkitDocument = document as WebkitDocument;
+const getFullscreenElement = () =>
+  webkitDocument.fullscreenElement ?? webkitDocument.webkitFullscreenElement ?? null;
 
 export default function WebRTCVideo({
   hasConnectionIssues,
@@ -130,7 +143,16 @@ export default function WebRTCVideo({
   );
 
   // Pointer lock and keyboard lock related
-  const isFullscreenEnabled = document.fullscreenEnabled;
+  const isFullscreenEnabled = !!(
+    webkitDocument.fullscreenEnabled || webkitDocument.webkitFullscreenEnabled
+  );
+  const [isNativeFullscreen, setIsNativeFullscreen] = useState(false);
+  // Pseudo-fullscreen (the container covers the viewport) where the Fullscreen API is missing,
+  // e.g. iPhone Safari. video.webkitEnterFullscreen() is no substitute: its native player
+  // swallows all input. Keyed to the path so that navigating away ends it.
+  const { pathname } = useLocation();
+  const [pseudoFullscreenPath, setPseudoFullscreenPath] = useState<string | null>(null);
+  const isPseudoFullscreen = pseudoFullscreenPath === pathname;
 
   const checkNavigatorPermissions = useCallback(async (permissionName: string) => {
     if (!navigator || !navigator.permissions || !navigator.permissions.query) {
@@ -219,7 +241,12 @@ export default function WebRTCVideo({
   }, [isPointerLockPossible]);
 
   const requestFullscreen = useCallback(async () => {
-    if (!isFullscreenEnabled || !fullscreenContainerRef.current) return;
+    const container = fullscreenContainerRef.current as WebkitElement | null;
+    if (!container) return;
+    if (!isFullscreenEnabled) {
+      setPseudoFullscreenPath(pathname);
+      return;
+    }
 
     // per https://wicg.github.io/keyboard-lock/#system-key-press-handler
     // If keyboard lock is activated after fullscreen is already in effect, then the user my
@@ -228,23 +255,69 @@ export default function WebRTCVideo({
     await requestKeyboardLock();
     await requestPointerLock();
 
-    await fullscreenContainerRef.current.requestFullscreen({
-      navigationUI: "show",
-    });
-  }, [isFullscreenEnabled, requestKeyboardLock, requestPointerLock]);
+    try {
+      if (container.requestFullscreen) {
+        await container.requestFullscreen({ navigationUI: "show" });
+      } else {
+        container.webkitRequestFullscreen?.();
+      }
+    } catch {
+      setPseudoFullscreenPath(pathname);
+    }
+  }, [isFullscreenEnabled, pathname, requestKeyboardLock, requestPointerLock]);
 
-  // setup to release the keyboard lock anytime the fullscreen ends
+  const exitFullscreen = useCallback(async () => {
+    setPseudoFullscreenPath(null);
+    if (!getFullscreenElement()) return;
+    try {
+      if (document.exitFullscreen) await document.exitFullscreen();
+      else webkitDocument.webkitExitFullscreen?.();
+    } catch {
+      // already left
+    }
+  }, []);
+
+  const isFullscreen = isNativeFullscreen || isPseudoFullscreen;
+  const toggleFullscreen = useCallback(
+    () => (isFullscreen ? exitFullscreen() : requestFullscreen()),
+    [isFullscreen, exitFullscreen, requestFullscreen],
+  );
+
+  // Track native fullscreen, and release the keyboard lock when it ends
   useEffect(() => {
-    if (!videoElm.current) return;
+    const abortController = new AbortController();
+    const signal = abortController.signal;
 
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement) {
+      const element = getFullscreenElement();
+      setIsNativeFullscreen(!!element && element === fullscreenContainerRef.current);
+      if (!element) {
         releaseKeyboardLock();
       }
     };
 
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("fullscreenchange", handleFullscreenChange, { signal });
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange, { signal });
+    return () => abortController.abort();
   }, [releaseKeyboardLock]);
+
+  // Escape leaves pseudo-fullscreen, as it does native fullscreen; the capture listener runs
+  // before the document one that forwards keys to the remote.
+  useEffect(() => {
+    if (!isPseudoFullscreen) return;
+    const abortController = new AbortController();
+    window.addEventListener(
+      "keydown",
+      (e: KeyboardEvent) => {
+        if (e.key !== "Escape") return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setPseudoFullscreenPath(null);
+      },
+      { capture: true, signal: abortController.signal },
+    );
+    return () => abortController.abort();
+  }, [isPseudoFullscreen]);
 
   const absMouseMoveHandler = useMemo(
     () =>
@@ -606,13 +679,8 @@ export default function WebRTCVideo({
     <div className="grid h-full w-full grid-rows-(--grid-layout)">
       <div className="flex min-h-[39.5px] flex-col">
         <div className="flex flex-col">
-          <fieldset
-            disabled={peerConnection?.connectionState !== "connected"}
-            className="contents"
-          >
-            <Actionbar
-              requestFullscreen={requestFullscreen}
-            />
+          <fieldset disabled={peerConnection?.connectionState !== "connected"} className="contents">
+            <Actionbar isFullscreen={isFullscreen} toggleFullscreen={toggleFullscreen} />
             <MacroBar />
           </fieldset>
         </div>
@@ -634,13 +702,24 @@ export default function WebRTCVideo({
                 <div className="grid grow grid-rows-(--grid-bodyFooter) overflow-hidden">
                   {/* In relative mouse mode and under https, we enable the pointer lock, and to do so we need a bar to show the user to click on the video to enable mouse control */}
                   <PointerLockBar show={showPointerLockBar} />
-                  <div
-                    className="relative mx-4 my-2 flex items-center justify-center overflow-hidden"
-                  >
+                  <div className="relative mx-4 my-2 flex items-center justify-center overflow-hidden">
                     <div
                       ref={fullscreenContainerRef}
-                      className="relative flex h-full w-full items-center justify-center"
+                      className={cx("relative flex h-full w-full items-center justify-center", {
+                        "fixed inset-0 z-1000 h-dvh w-dvw bg-black": isPseudoFullscreen,
+                      })}
                     >
+                      {isPseudoFullscreen && (
+                        <button
+                          type="button"
+                          onClick={exitFullscreen}
+                          aria-label={m.action_bar_exit_fullscreen()}
+                          title={m.action_bar_exit_fullscreen()}
+                          className="absolute top-2 right-2 z-20 cursor-pointer rounded-full bg-black/40 p-1.5 text-white/80 hover:bg-black/70"
+                        >
+                          <LuMinimize className="size-4" />
+                        </button>
+                      )}
                       <video
                         ref={videoElm}
                         autoPlay
@@ -652,20 +731,17 @@ export default function WebRTCVideo({
                         disablePictureInPicture
                         controlsList="nofullscreen"
                         style={videoStyle}
-                        className={cx(
-                          "h-full w-full object-contain transition-all duration-1000",
-                          {
-                            "cursor-none": settings.isCursorHidden,
-                            "pointer-events-none": isOcrMode,
-                            "opacity-0!":
-                              isVideoLoading ||
-                              hdmiError ||
-                              hasConnectionIssues ||
-                              peerConnectionState !== "connected",
-                            "opacity-60!": showPointerLockBar,
-                            "animate-slideUpFade": isPlaying,
-                          },
-                        )}
+                        className={cx("h-full w-full object-contain transition-all duration-1000", {
+                          "cursor-none": settings.isCursorHidden,
+                          "pointer-events-none": isOcrMode,
+                          "opacity-0!":
+                            isVideoLoading ||
+                            hdmiError ||
+                            hasConnectionIssues ||
+                            peerConnectionState !== "connected",
+                          "opacity-60!": showPointerLockBar,
+                          "animate-slideUpFade": isPlaying,
+                        })}
                       />
                       <OcrOverlay />
                       {peerConnection?.connectionState == "connected" && !hasConnectionIssues && (
