@@ -44,11 +44,12 @@ export const SplitButtonPrimary = React.forwardRef<
     icon?: React.FC<{ className: string | undefined }>;
     label: string;
     className?: string;
+    labelClassName?: string;
   } & React.ButtonHTMLAttributes<HTMLButtonElement>
->(({ icon: Icon, label, className, ...props }, ref) => (
+>(({ icon: Icon, label, className, labelClassName, ...props }, ref) => (
   <button ref={ref} type="button" {...props} className={cx(primaryClass, className)}>
     {Icon && <Icon className={iconClass} />}
-    <span className="truncate">{label}</span>
+    <span className={cx("truncate", labelClassName)}>{label}</span>
   </button>
 ));
 
