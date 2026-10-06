@@ -336,7 +336,7 @@ export default function Actionbar({
             </div>
           )}
 
-          <div className="hidden items-center gap-x-2 lg:flex">
+          <div className="hidden items-center gap-x-2 md:flex">
             <div className="h-4 w-px bg-slate-300 dark:bg-slate-600" />
             {isEmbedMode ? (
               <Button
