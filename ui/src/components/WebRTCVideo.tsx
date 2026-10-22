@@ -9,6 +9,7 @@ import useKeyboard from "@hooks/useKeyboard";
 import useMouse from "@hooks/useMouse";
 import { useRTCStore, useSettingsStore, useUiStore, useVideoStore } from "@hooks/stores";
 import VirtualKeyboard from "@components/VirtualKeyboard";
+import FullscreenShortcuts from "@components/FullscreenShortcuts";
 import Actionbar from "@components/ActionBar";
 import MacroBar from "@components/MacroBar";
 import InfoBar from "@components/InfoBar";
@@ -22,6 +23,7 @@ import {
 import OcrOverlay from "@components/OcrOverlay";
 import { keys } from "@/keyboardMappings";
 import { isLockAllowed } from "@/utils/lockPermission";
+import { remapWinKey } from "@/utils/keyRemap";
 import notifications from "@/notifications";
 import { m } from "@localizations/messages.js";
 
@@ -316,31 +318,35 @@ export default function WebRTCVideo({
 
   const mouseWheelHandler = useMemo(() => getMouseWheelHandler(), [getMouseWheelHandler]);
 
-  function getAdjustedKeyCode(e: KeyboardEvent) {
-    const key = e.key;
-    let code = e.code;
+  const winKeyAs = settings.winKeyAs;
+  const getAdjustedKeyCode = useCallback(
+    (e: KeyboardEvent) => {
+      const key = e.key;
+      let code = e.code;
 
-    if (code == "IntlBackslash" && ["`", "~"].includes(key)) {
-      code = "Backquote";
-    } else if (code == "Backquote" && ["§", "±"].includes(key)) {
-      code = "IntlBackslash";
-    }
-    // For Japanese 106/109
-    else if (code === "IntlYen") {
-      code = "Yen";
-    } else if (code === "IntlRo") {
-      code = "KeyRO";
-    } else if (code === "Convert") {
-      code = "Henkan";
-    } else if (code === "NonConvert") {
-      code = "Muhenkan";
-    } else if (key === "Shift" && code === "") {
-      // Microsoft IME fix
-      code = "ShiftRight";
-    }
+      if (code == "IntlBackslash" && ["`", "~"].includes(key)) {
+        code = "Backquote";
+      } else if (code == "Backquote" && ["§", "±"].includes(key)) {
+        code = "IntlBackslash";
+      }
+      // For Japanese 106/109
+      else if (code === "IntlYen") {
+        code = "Yen";
+      } else if (code === "IntlRo") {
+        code = "KeyRO";
+      } else if (code === "Convert") {
+        code = "Henkan";
+      } else if (code === "NonConvert") {
+        code = "Muhenkan";
+      } else if (key === "Shift" && code === "") {
+        // Microsoft IME fix
+        code = "ShiftRight";
+      }
 
-    return code;
-  }
+      return remapWinKey(code, winKeyAs);
+    },
+    [winKeyAs],
+  );
 
   const keyDownHandler = useCallback(
     (e: KeyboardEvent) => {
@@ -403,7 +409,9 @@ export default function WebRTCVideo({
       console.debug(`Key down: ${hidKey}`);
       handleKeyPress(hidKey, true);
 
-      if (!isKeyboardLockActive && hidKey === keys.MetaLeft) {
+      // A key the owner picked as Win is held like a real modifier, so only force the release
+      // for the physical Win key, whose keyup the browser may never deliver.
+      if (!isKeyboardLockActive && hidKey === keys.MetaLeft && e.code === "MetaLeft") {
         // If the left meta key was just pressed and we're not keyboard locked
         // we'll never see the keyup event because the browser is going to lose
         // focus so set a deferred keyup after a short delay
@@ -413,7 +421,7 @@ export default function WebRTCVideo({
         }, 100);
       }
     },
-    [handleKeyPress, isKeyboardLockActive, isOcrMode, isWindowsClient],
+    [getAdjustedKeyCode, handleKeyPress, isKeyboardLockActive, isOcrMode, isWindowsClient],
   );
 
   const keyUpHandler = useCallback(
@@ -456,7 +464,7 @@ export default function WebRTCVideo({
       console.debug(`Key up: ${hidKey}`);
       handleKeyPress(hidKey, false);
     },
-    [handleKeyPress, isOcrMode, isWindowsClient],
+    [getAdjustedKeyCode, handleKeyPress, isOcrMode, isWindowsClient],
   );
 
   const videoKeyUpHandler = useCallback((e: KeyboardEvent) => {
@@ -740,6 +748,7 @@ export default function WebRTCVideo({
                           <LuMinimize className="size-4" />
                         </button>
                       )}
+                      {isFullscreen && <FullscreenShortcuts />}
                       <video
                         ref={videoElm}
                         autoPlay
@@ -786,7 +795,7 @@ export default function WebRTCVideo({
                       )}
                     </div>
                   </div>
-                  <VirtualKeyboard />
+                  {!isFullscreen && <VirtualKeyboard />}
                 </div>
               </div>
             </div>

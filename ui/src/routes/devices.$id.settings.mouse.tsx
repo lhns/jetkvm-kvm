@@ -13,6 +13,7 @@ import { SettingsItem } from "@components/SettingsItem";
 import SettingsNestedSection from "@components/SettingsNestedSection";
 import { SettingsPageHeader } from "@components/SettingsPageheader";
 import { JigglerSetting } from "@components/JigglerSetting";
+import SwipeActionSettings from "@components/SwipeActionSettings";
 import notifications from "@/notifications";
 import { m } from "@localizations/messages.js";
 
@@ -311,6 +312,10 @@ export default function SettingsMouseRoute() {
               </GridCard>
             </button>
           </div>
+        </div>
+        <div className="space-y-4">
+          <SettingsItem title={m.swipe_title()} description={m.swipe_section_description()} />
+          <SwipeActionSettings />
         </div>
       </div>
     </div>

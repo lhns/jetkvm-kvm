@@ -7,12 +7,20 @@ import { Checkbox } from "@components/Checkbox";
 import { SelectMenuBasic } from "@components/SelectMenuBasic";
 import { SettingsItem } from "@components/SettingsItem";
 import { SettingsPageHeader } from "@components/SettingsPageheader";
+import { WIN_KEY_SETTINGS } from "@/utils/keyRemap";
 import notifications from "@/notifications";
 import { m } from "@localizations/messages.js";
 
+const winKeyLabels: Record<(typeof WIN_KEY_SETTINGS)[number], () => string> = {
+  off: m.keyboard_win_key_off,
+  ScrollLock: m.keyboard_win_key_scroll_lock,
+  CapsLock: m.keyboard_win_key_caps_lock,
+  ContextMenu: m.keyboard_win_key_menu,
+};
+
 export default function SettingsKeyboardRoute() {
   const { setKeyboardLayout } = useSettingsStore();
-  const { showPressedKeys, setShowPressedKeys } = useSettingsStore();
+  const { showPressedKeys, setShowPressedKeys, winKeyAs, setWinKeyAs } = useSettingsStore();
   const { selectedKeyboard, keyboardOptions } = useKeyboardLayout();
 
   const { send } = useJsonRpc();
@@ -75,6 +83,18 @@ export default function SettingsKeyboardRoute() {
           <Checkbox
             checked={showPressedKeys}
             onChange={e => setShowPressedKeys(e.target.checked)}
+          />
+        </SettingsItem>
+        <SettingsItem
+          title={m.keyboard_win_key_title()}
+          description={m.keyboard_win_key_description()}
+        >
+          <SelectMenuBasic
+            size="SM"
+            label=""
+            value={winKeyAs}
+            onChange={e => setWinKeyAs(e.target.value)}
+            options={WIN_KEY_SETTINGS.map(key => ({ value: key, label: winKeyLabels[key]() }))}
           />
         </SettingsItem>
       </div>
