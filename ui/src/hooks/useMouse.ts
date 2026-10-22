@@ -3,12 +3,12 @@ import { useCallback, useRef, useState } from "react";
 import { useJsonRpc } from "./useJsonRpc";
 import { useHidRpc } from "./useHidRpc";
 import { useMouseStore, useSettingsStore } from "./stores";
+import { splitInt8Delta } from "@/utils/mouseDelta";
+import { hidFromNormalized, streamFromClient } from "@/utils/pointerMapping";
 
 const calcDelta = (pos: number) => (Math.abs(pos) < 10 ? pos * 2 : pos);
 
 export interface AbsMouseMoveHandlerProps {
-  videoClientWidth: number;
-  videoClientHeight: number;
   videoWidth: number;
   videoHeight: number;
 }
@@ -35,11 +35,14 @@ export default function useMouse() {
       // if (x === 0 && y === 0 && buttons === 0) return;
       const dx = calcDelta(x);
       const dy = calcDelta(y);
-      if (rpcHidReady) {
-        reportRelMouseEvent(dx, dy, buttons);
-      } else {
-        // kept for backward compatibility
-        send("relMouseReport", { dx, dy, buttons });
+      // The report carries int8 deltas; a fast flick exceeds that and would be dropped whole.
+      for (const [cx, cy] of splitInt8Delta(dx, dy)) {
+        if (rpcHidReady) {
+          reportRelMouseEvent(cx, cy, buttons);
+        } else {
+          // kept for backward compatibility
+          send("relMouseReport", { dx: cx, dy: cy, buttons });
+        }
       }
       setMouseMove({ x, y, buttons });
     },
@@ -74,46 +77,25 @@ export default function useMouse() {
   );
 
   const getAbsMouseMoveHandler = useCallback(
-    ({ videoClientWidth, videoClientHeight, videoWidth, videoHeight }: AbsMouseMoveHandlerProps) =>
-      (e: MouseEvent) => {
-        if (!videoClientWidth || !videoClientHeight) return;
+    ({ videoWidth, videoHeight }: AbsMouseMoveHandlerProps) =>
+      (e: PointerEvent | MouseEvent) => {
         if (mouseMode !== "absolute") return;
+        // A second finger must not fight over the single absolute pointer.
+        if ("isPrimary" in e && !e.isPrimary) return;
 
-        // Get the aspect ratios of the video element and the video stream
-        const videoElementAspectRatio = videoClientWidth / videoClientHeight;
-        const videoStreamAspectRatio = videoWidth / videoHeight;
+        // clientX/Y against the element's rect: offsetX/Y is unreliable for touch input.
+        const target = e.currentTarget as HTMLElement | null;
+        if (!target) return;
+        const p = streamFromClient(
+          e.clientX,
+          e.clientY,
+          target.getBoundingClientRect(),
+          videoWidth,
+          videoHeight,
+        );
+        if (!p) return;
 
-        // Calculate the effective video display area
-        let effectiveWidth = videoClientWidth;
-        let effectiveHeight = videoClientHeight;
-        let offsetX = 0;
-        let offsetY = 0;
-
-        if (videoElementAspectRatio > videoStreamAspectRatio) {
-          // Pillarboxing: black bars on the left and right
-          effectiveWidth = videoClientHeight * videoStreamAspectRatio;
-          offsetX = (videoClientWidth - effectiveWidth) / 2;
-        } else if (videoElementAspectRatio < videoStreamAspectRatio) {
-          // Letterboxing: black bars on the top and bottom
-          effectiveHeight = videoClientWidth / videoStreamAspectRatio;
-          offsetY = (videoClientHeight - effectiveHeight) / 2;
-        }
-
-        // Clamp mouse position within the effective video boundaries
-        const clampedX = Math.min(Math.max(offsetX, e.offsetX), offsetX + effectiveWidth);
-        const clampedY = Math.min(Math.max(offsetY, e.offsetY), offsetY + effectiveHeight);
-
-        // Map clamped mouse position to the video stream's coordinate system
-        const relativeX = (clampedX - offsetX) / effectiveWidth;
-        const relativeY = (clampedY - offsetY) / effectiveHeight;
-
-        // Convert to HID absolute coordinate system (0-32767 range)
-        const x = Math.round(relativeX * 32767);
-        const y = Math.round(relativeY * 32767);
-
-        // Send mouse movement
-        const { buttons } = e;
-        sendAbsMouseMovement(x, y, buttons);
+        sendAbsMouseMovement(hidFromNormalized(p.nx), hidFromNormalized(p.ny), e.buttons);
       },
     [mouseMode, sendAbsMouseMovement],
   );
