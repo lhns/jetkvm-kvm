@@ -400,6 +400,16 @@ export interface SettingsState {
 
   hideStatusBar: boolean;
   setHideStatusBar: (hide: boolean) => void;
+
+  // Key that acts as the Win key on the remote: "off" | "ScrollLock" | "CapsLock" | "ContextMenu"
+  winKeyAs: string;
+  setWinKeyAs: (key: string) => void;
+
+  // Fullscreen three-finger swipes: "winShiftArrow" | "off" | "macro:<id>"
+  swipeLeftAction: string;
+  setSwipeLeftAction: (action: string) => void;
+  swipeRightAction: string;
+  setSwipeRightAction: (action: string) => void;
 }
 
 export const useSettingsStore = create(
@@ -455,6 +465,14 @@ export const useSettingsStore = create(
 
       hideStatusBar: false,
       setHideStatusBar: (hide: boolean) => set({ hideStatusBar: hide }),
+
+      winKeyAs: "ScrollLock",
+      setWinKeyAs: (key: string) => set({ winKeyAs: key }),
+
+      swipeLeftAction: "winShiftArrow",
+      setSwipeLeftAction: (action: string) => set({ swipeLeftAction: action }),
+      swipeRightAction: "winShiftArrow",
+      setSwipeRightAction: (action: string) => set({ swipeRightAction: action }),
     }),
     {
       name: "settings",
