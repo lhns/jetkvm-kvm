@@ -66,8 +66,6 @@ export default function WebRTCVideo({
     setSize: setVideoSize,
     width: videoWidth,
     height: videoHeight,
-    clientWidth: videoClientWidth,
-    clientHeight: videoClientHeight,
     hdmiState,
     setVideoElement,
     setContainerElement,
@@ -322,12 +320,10 @@ export default function WebRTCVideo({
   const absMouseMoveHandler = useMemo(
     () =>
       getAbsMouseMoveHandler({
-        videoClientWidth,
-        videoClientHeight,
         videoWidth,
         videoHeight,
       }),
-    [getAbsMouseMoveHandler, videoClientWidth, videoClientHeight, videoWidth, videoHeight],
+    [getAbsMouseMoveHandler, videoWidth, videoHeight],
   );
 
   const relMouseMoveHandler = useMemo(() => getRelMouseMoveHandler(), [getRelMouseMoveHandler]);
@@ -594,7 +590,13 @@ export default function WebRTCVideo({
       const abortController = new AbortController();
       const signal = abortController.signal;
 
-      videoElmRefValue.addEventListener("mousemove", mouseHandler, { signal });
+      // Absolute mode needs pointer events so a touch drag delivers moves. Relative mode keeps
+      // mousemove, which is what pointer lock reports movementX/Y through.
+      videoElmRefValue.addEventListener(
+        isRelativeMouseMode ? "mousemove" : "pointermove",
+        mouseHandler,
+        { signal },
+      );
       videoElmRefValue.addEventListener("pointerdown", mouseHandler, { signal });
       videoElmRefValue.addEventListener("pointerup", mouseHandler, { signal });
       videoElmRefValue.addEventListener("wheel", mouseWheelHandler, {
@@ -616,6 +618,20 @@ export default function WebRTCVideo({
         // Reset the mouse position when the window is blurred or the document is hidden
         window.addEventListener("blur", resetMousePosition, { signal });
         document.addEventListener("visibilitychange", resetMousePosition, { signal });
+        // The system took the touch (edge gesture, palm rejection): release the buttons.
+        videoElmRefValue.addEventListener("pointercancel", resetMousePosition, { signal });
+        // Keep receiving moves and the release when a drag leaves the element.
+        videoElmRefValue.addEventListener(
+          "pointerdown",
+          (e: PointerEvent) => {
+            try {
+              videoElmRefValue.setPointerCapture(e.pointerId);
+            } catch {
+              // best effort: the pointer may already be gone
+            }
+          },
+          { signal },
+        );
       }
 
       const preventContextMenu = (e: MouseEvent) => e.preventDefault();
@@ -731,17 +747,20 @@ export default function WebRTCVideo({
                         disablePictureInPicture
                         controlsList="nofullscreen"
                         style={videoStyle}
-                        className={cx("h-full w-full object-contain transition-all duration-1000", {
-                          "cursor-none": settings.isCursorHidden,
-                          "pointer-events-none": isOcrMode,
-                          "opacity-0!":
-                            isVideoLoading ||
-                            hdmiError ||
-                            hasConnectionIssues ||
-                            peerConnectionState !== "connected",
-                          "opacity-60!": showPointerLockBar,
-                          "animate-slideUpFade": isPlaying,
-                        })}
+                        className={cx(
+                          "h-full w-full touch-none object-contain transition-all duration-1000 select-none [-webkit-touch-callout:none]",
+                          {
+                            "cursor-none": settings.isCursorHidden,
+                            "pointer-events-none": isOcrMode,
+                            "opacity-0!":
+                              isVideoLoading ||
+                              hdmiError ||
+                              hasConnectionIssues ||
+                              peerConnectionState !== "connected",
+                            "opacity-60!": showPointerLockBar,
+                            "animate-slideUpFade": isPlaying,
+                          },
+                        )}
                       />
                       <OcrOverlay />
                       {peerConnection?.connectionState == "connected" && !hasConnectionIssues && (
