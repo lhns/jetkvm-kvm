@@ -4,7 +4,11 @@ import { useJsonRpc } from "./useJsonRpc";
 import { useHidRpc } from "./useHidRpc";
 import { useMouseStore, useSettingsStore } from "./stores";
 import { splitInt8Delta } from "@/utils/mouseDelta";
+import { recentlyTouched } from "@/utils/touchRecency";
 import { hidFromNormalized, streamFromClient } from "@/utils/pointerMapping";
+
+const isTouchEvent = (e: MouseEvent | PointerEvent) =>
+  ("pointerType" in e && e.pointerType === "touch") || recentlyTouched();
 
 const calcDelta = (pos: number) => (Math.abs(pos) < 10 ? pos * 2 : pos);
 
@@ -28,14 +32,9 @@ export default function useMouse() {
   const { reportAbsMouseEvent, reportRelMouseEvent, rpcHidReady } = useHidRpc();
   // Mouse-related
 
-  const sendRelMouseMovement = useCallback(
-    (x: number, y: number, buttons: number, locked = false) => {
-      if (mouseMode !== "relative") return;
-      // if we ignore the event, double-click will not work
-      // if (x === 0 && y === 0 && buttons === 0) return;
-      // Pointer lock delivers exact device deltas; the boost is only for slow, unlocked moves.
-      const dx = locked ? x : calcDelta(x);
-      const dy = locked ? y : calcDelta(y);
+  // Relative report, whatever the mouse mode (touch input uses it too).
+  const reportRel = useCallback(
+    (dx: number, dy: number, buttons: number) => {
       // The report carries int8 deltas; a fast flick exceeds that and would be dropped whole.
       for (const [cx, cy] of splitInt8Delta(dx, dy)) {
         if (rpcHidReady) {
@@ -45,14 +44,27 @@ export default function useMouse() {
           send("relMouseReport", { dx: cx, dy: cy, buttons });
         }
       }
+    },
+    [send, reportRelMouseEvent, rpcHidReady],
+  );
+
+  const sendRelMouseMovement = useCallback(
+    (x: number, y: number, buttons: number, locked = false) => {
+      if (mouseMode !== "relative") return;
+      // if we ignore the event, double-click will not work
+      // if (x === 0 && y === 0 && buttons === 0) return;
+      // Pointer lock delivers exact device deltas; the boost is only for slow, unlocked moves.
+      reportRel(locked ? x : calcDelta(x), locked ? y : calcDelta(y), buttons);
       setMouseMove({ x, y, buttons });
     },
-    [send, reportRelMouseEvent, setMouseMove, mouseMode, rpcHidReady],
+    [reportRel, setMouseMove, mouseMode],
   );
 
   const getRelMouseMoveHandler = useCallback(
     () => (e: MouseEvent) => {
       if (mouseMode !== "relative") return;
+      // A finger is useTouchInput's; browsers also replay a tap as mouse events afterwards.
+      if (isTouchEvent(e)) return;
 
       // Send mouse movement
       const { buttons } = e;
@@ -61,9 +73,9 @@ export default function useMouse() {
     [sendRelMouseMovement, mouseMode],
   );
 
-  const sendAbsMouseMovement = useCallback(
+  // Absolute report, whatever the mouse mode (touch input uses it too).
+  const reportAbs = useCallback(
     (x: number, y: number, buttons: number) => {
-      if (mouseMode !== "absolute") return;
       if (rpcHidReady) {
         reportAbsMouseEvent(x, y, buttons);
       } else {
@@ -74,13 +86,22 @@ export default function useMouse() {
       setMousePosition(x, y);
       lastAbsPos.current = { x, y };
     },
-    [send, reportAbsMouseEvent, setMousePosition, mouseMode, rpcHidReady],
+    [send, reportAbsMouseEvent, setMousePosition, rpcHidReady],
+  );
+
+  const sendAbsMouseMovement = useCallback(
+    (x: number, y: number, buttons: number) => {
+      if (mouseMode !== "absolute") return;
+      reportAbs(x, y, buttons);
+    },
+    [reportAbs, mouseMode],
   );
 
   const getAbsMouseMoveHandler = useCallback(
     ({ videoWidth, videoHeight }: AbsMouseMoveHandlerProps) =>
       (e: PointerEvent | MouseEvent) => {
         if (mouseMode !== "absolute") return;
+        if (isTouchEvent(e)) return; // useTouchInput owns touch
         // A second finger must not fight over the single absolute pointer.
         if ("isPrimary" in e && !e.isPrimary) return;
 
@@ -132,6 +153,18 @@ export default function useMouse() {
     [send, blockWheelEvent, scrollThrottling, invertScroll],
   );
 
+  // Wheel steps in browser convention (positive y scrolls down), as the wheel handler gets them.
+  const sendScrollSteps = useCallback(
+    (x: number, y: number) => {
+      const clamp = (n: number) => Math.max(-127, Math.min(127, n));
+      const wheelY = (invertScroll ? 1 : -1) * clamp(y);
+      const wheelX = (invertScroll ? -1 : 1) * clamp(x);
+      if (wheelY === 0 && wheelX === 0) return;
+      send("wheelReport", { wheelY, wheelX });
+    },
+    [send, invertScroll],
+  );
+
   const resetMousePosition = useCallback(() => {
     sendAbsMouseMovement(lastAbsPos.current.x, lastAbsPos.current.y, 0);
   }, [sendAbsMouseMovement]);
@@ -141,5 +174,8 @@ export default function useMouse() {
     getAbsMouseMoveHandler,
     getMouseWheelHandler,
     resetMousePosition,
+    reportTouchAbs: reportAbs,
+    reportTouchRel: reportRel,
+    sendScrollSteps,
   };
 }

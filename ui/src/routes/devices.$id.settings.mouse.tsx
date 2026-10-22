@@ -14,6 +14,7 @@ import SettingsNestedSection from "@components/SettingsNestedSection";
 import { SettingsPageHeader } from "@components/SettingsPageheader";
 import { JigglerSetting } from "@components/JigglerSetting";
 import SwipeActionSettings from "@components/SwipeActionSettings";
+import TouchSettings from "@components/TouchSettings";
 import notifications from "@/notifications";
 import { m } from "@localizations/messages.js";
 
@@ -313,6 +314,7 @@ export default function SettingsMouseRoute() {
             </button>
           </div>
         </div>
+        <TouchSettings />
         <div className="space-y-4">
           <SettingsItem title={m.swipe_title()} description={m.swipe_section_description()} />
           <SwipeActionSettings />
