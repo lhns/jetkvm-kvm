@@ -51,9 +51,9 @@ def main():
         else:
             out = sorted_items
 
-        f.write_text(
-            json.dumps(out, ensure_ascii=False, indent=4) + "\n", encoding="utf-8"
-        )
+        # newline="\n": write_text would emit CRLF on Windows
+        with f.open("w", encoding="utf-8", newline="\n") as fh:
+            fh.write(json.dumps(out, ensure_ascii=False, indent=4) + "\n")
 
     if args.files:
         print(f"Processed {len(files)} files")
