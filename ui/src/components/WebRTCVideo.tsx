@@ -738,7 +738,9 @@ export default function WebRTCVideo({
                   <PointerLockBar show={showPointerLockBar} />
                   <div className="relative mx-4 my-2 flex items-center justify-center overflow-hidden">
                     <PointerLockUnavailableBar
-                      show={settings.mouseMode === "relative" && pointerLockFailed}
+                      show={
+                        settings.mouseMode === "relative" && pointerLockFailed && !lastInputWasTouch
+                      }
                       onSwitchToAbsolute={() => settings.setMouseMode("absolute")}
                     />
                     <div
