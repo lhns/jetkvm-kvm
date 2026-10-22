@@ -304,6 +304,11 @@ describe("cancel", () => {
     const s = new Sim(touchpad).cancel(10);
     expect(s.log).toEqual([]);
   });
+
+  it("ignores the lift of a finger it never saw land", () => {
+    const s = new Sim(touchpad).up(10, 7);
+    expect(s.log).toEqual([]);
+  });
 });
 
 describe("pointer maths", () => {

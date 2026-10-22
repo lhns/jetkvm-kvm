@@ -323,41 +323,37 @@ export default function WebRTCVideo({
 
   const mouseWheelHandler = useMemo(() => getMouseWheelHandler(), [getMouseWheelHandler]);
 
-  const winKeyAs = settings.winKeyAs;
-  const getAdjustedKeyCode = useCallback(
-    (e: KeyboardEvent) => {
-      const key = e.key;
-      let code = e.code;
+  function getAdjustedKeyCode(e: KeyboardEvent) {
+    const key = e.key;
+    let code = e.code;
 
-      if (code == "IntlBackslash" && ["`", "~"].includes(key)) {
-        code = "Backquote";
-      } else if (code == "Backquote" && ["§", "±"].includes(key)) {
-        code = "IntlBackslash";
-      }
-      // For Japanese 106/109
-      else if (code === "IntlYen") {
-        code = "Yen";
-      } else if (code === "IntlRo") {
-        code = "KeyRO";
-      } else if (code === "Convert") {
-        code = "Henkan";
-      } else if (code === "NonConvert") {
-        code = "Muhenkan";
-      } else if (key === "Shift" && code === "") {
-        // Microsoft IME fix
-        code = "ShiftRight";
-      }
+    if (code == "IntlBackslash" && ["`", "~"].includes(key)) {
+      code = "Backquote";
+    } else if (code == "Backquote" && ["§", "±"].includes(key)) {
+      code = "IntlBackslash";
+    }
+    // For Japanese 106/109
+    else if (code === "IntlYen") {
+      code = "Yen";
+    } else if (code === "IntlRo") {
+      code = "KeyRO";
+    } else if (code === "Convert") {
+      code = "Henkan";
+    } else if (code === "NonConvert") {
+      code = "Muhenkan";
+    } else if (key === "Shift" && code === "") {
+      // Microsoft IME fix
+      code = "ShiftRight";
+    }
 
-      return remapWinKey(code, winKeyAs);
-    },
-    [winKeyAs],
-  );
+    return code;
+  }
 
   const keyDownHandler = useCallback(
     (e: KeyboardEvent) => {
       if (isOcrMode) return; // Let OCR overlay handle keys
       e.preventDefault();
-      const code = getAdjustedKeyCode(e);
+      const code = remapWinKey(getAdjustedKeyCode(e), settings.winKeyAs);
       const hidKey = keys[code];
 
       if (hidKey === undefined) {
@@ -426,14 +422,14 @@ export default function WebRTCVideo({
         }, 100);
       }
     },
-    [getAdjustedKeyCode, handleKeyPress, isKeyboardLockActive, isOcrMode, isWindowsClient],
+    [handleKeyPress, isKeyboardLockActive, isOcrMode, isWindowsClient, settings.winKeyAs],
   );
 
   const keyUpHandler = useCallback(
     async (e: KeyboardEvent) => {
       if (isOcrMode) return; // Let OCR overlay handle keys
       e.preventDefault();
-      const code = getAdjustedKeyCode(e);
+      const code = remapWinKey(getAdjustedKeyCode(e), settings.winKeyAs);
       const hidKey = keys[code];
 
       if (hidKey === undefined) {
@@ -469,7 +465,7 @@ export default function WebRTCVideo({
       console.debug(`Key up: ${hidKey}`);
       handleKeyPress(hidKey, false);
     },
-    [getAdjustedKeyCode, handleKeyPress, isOcrMode, isWindowsClient],
+    [handleKeyPress, isOcrMode, isWindowsClient, settings.winKeyAs],
   );
 
   const videoKeyUpHandler = useCallback((e: KeyboardEvent) => {
@@ -622,20 +618,8 @@ export default function WebRTCVideo({
         // Reset the mouse position when the window is blurred or the document is hidden
         window.addEventListener("blur", resetMousePosition, { signal });
         document.addEventListener("visibilitychange", resetMousePosition, { signal });
-        // The system took the touch (edge gesture, palm rejection): release the buttons.
+        // The system took the pointer (pen; touch is useTouchInput's): release the buttons.
         videoElmRefValue.addEventListener("pointercancel", resetMousePosition, { signal });
-        // Keep receiving moves and the release when a drag leaves the element.
-        videoElmRefValue.addEventListener(
-          "pointerdown",
-          (e: PointerEvent) => {
-            try {
-              videoElmRefValue.setPointerCapture(e.pointerId);
-            } catch {
-              // best effort: the pointer may already be gone
-            }
-          },
-          { signal },
-        );
       }
 
       const preventContextMenu = (e: MouseEvent) => e.preventDefault();

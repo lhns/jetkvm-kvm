@@ -25,14 +25,13 @@ interface Session {
  */
 export function useMultiTouchGestures(
   element: HTMLElement | null,
-  active: boolean,
   onGesture: (g: MultiTouchGesture) => void,
 ) {
   const onGestureRef = useRef(onGesture);
   onGestureRef.current = onGesture;
 
   useEffect(() => {
-    if (!element || !active) return;
+    if (!element) return;
     const abort = new AbortController();
     const { signal } = abort;
 
@@ -79,5 +78,5 @@ export function useMultiTouchGestures(
     element.addEventListener("touchend", onEnd, { signal, passive: true });
     element.addEventListener("touchcancel", onCancel, { signal, passive: true });
     return () => abort.abort();
-  }, [element, active]);
+  }, [element]);
 }
