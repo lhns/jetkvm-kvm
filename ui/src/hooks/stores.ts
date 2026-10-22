@@ -410,6 +410,19 @@ export interface SettingsState {
   setSwipeLeftAction: (action: string) => void;
   swipeRightAction: string;
   setSwipeRightAction: (action: string) => void;
+
+  // Finger input. "touchpad" moves a cursor like a laptop touchpad, "direct" puts it under the
+  // finger (absolute mouse only; the relative mouse is always touchpad).
+  touchStyle: string;
+  setTouchStyle: (style: string) => void;
+  touchSensitivity: number;
+  setTouchSensitivity: (value: number) => void;
+  touchTapDrag: boolean;
+  setTouchTapDrag: (enabled: boolean) => void;
+  touchTapDelay: number;
+  setTouchTapDelay: (ms: number) => void;
+  touchLongPress: number;
+  setTouchLongPress: (ms: number) => void;
 }
 
 export const useSettingsStore = create(
@@ -473,6 +486,17 @@ export const useSettingsStore = create(
       setSwipeLeftAction: (action: string) => set({ swipeLeftAction: action }),
       swipeRightAction: "winShiftArrow",
       setSwipeRightAction: (action: string) => set({ swipeRightAction: action }),
+
+      touchStyle: "touchpad",
+      setTouchStyle: (style: string) => set({ touchStyle: style }),
+      touchSensitivity: 1,
+      setTouchSensitivity: (value: number) => set({ touchSensitivity: value }),
+      touchTapDrag: true,
+      setTouchTapDrag: (enabled: boolean) => set({ touchTapDrag: enabled }),
+      touchTapDelay: 180,
+      setTouchTapDelay: (ms: number) => set({ touchTapDelay: ms }),
+      touchLongPress: 550,
+      setTouchLongPress: (ms: number) => set({ touchLongPress: ms }),
     }),
     {
       name: "settings",

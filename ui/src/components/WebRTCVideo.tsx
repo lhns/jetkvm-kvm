@@ -7,9 +7,11 @@ import { cx } from "@/cva.config";
 import { isWindows } from "@/utils";
 import useKeyboard from "@hooks/useKeyboard";
 import useMouse from "@hooks/useMouse";
+import { useTouchInput } from "@hooks/useTouchInput";
 import { useRTCStore, useSettingsStore, useUiStore, useVideoStore } from "@hooks/stores";
 import VirtualKeyboard from "@components/VirtualKeyboard";
 import FullscreenShortcuts from "@components/FullscreenShortcuts";
+import TouchCursorMarker from "@components/TouchCursorMarker";
 import Actionbar from "@components/ActionBar";
 import MacroBar from "@components/MacroBar";
 import InfoBar from "@components/InfoBar";
@@ -24,6 +26,7 @@ import OcrOverlay from "@components/OcrOverlay";
 import { keys } from "@/keyboardMappings";
 import { isLockAllowed } from "@/utils/lockPermission";
 import { remapWinKey } from "@/utils/keyRemap";
+import { recentlyTouched } from "@/utils/touchRecency";
 import notifications from "@/notifications";
 import { m } from "@localizations/messages.js";
 
@@ -62,12 +65,14 @@ export default function WebRTCVideo({
   // Store hooks
   const settings = useSettingsStore();
   const { handleKeyPress, resetKeyboardState } = useKeyboard();
+  const mouse = useMouse();
   const {
     getRelMouseMoveHandler,
     getAbsMouseMoveHandler,
     getMouseWheelHandler,
     resetMousePosition,
-  } = useMouse();
+  } = mouse;
+  const { cursorVisible: touchCursorVisible } = useTouchInput(mouse);
   const {
     setClientSize: setVideoClientSize,
     setSize: setVideoSize,
@@ -602,7 +607,12 @@ export default function WebRTCVideo({
         videoElmRefValue.addEventListener(
           "click",
           () => {
-            if (isPointerLockPossible && !isPointerLockActive && !document.pointerLockElement) {
+            if (
+              isPointerLockPossible &&
+              !isPointerLockActive &&
+              !document.pointerLockElement &&
+              !recentlyTouched()
+            ) {
               requestPointerLock();
             }
           },
@@ -728,7 +738,9 @@ export default function WebRTCVideo({
                   <PointerLockBar show={showPointerLockBar} />
                   <div className="relative mx-4 my-2 flex items-center justify-center overflow-hidden">
                     <PointerLockUnavailableBar
-                      show={settings.mouseMode === "relative" && pointerLockFailed}
+                      show={
+                        settings.mouseMode === "relative" && pointerLockFailed && !lastInputWasTouch
+                      }
                       onSwitchToAbsolute={() => settings.setMouseMode("absolute")}
                     />
                     <div
@@ -775,6 +787,7 @@ export default function WebRTCVideo({
                           },
                         )}
                       />
+                      <TouchCursorMarker visible={touchCursorVisible} />
                       <OcrOverlay />
                       {peerConnection?.connectionState == "connected" && !hasConnectionIssues && (
                         <div
