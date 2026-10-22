@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   clientFromStream,
   hidFromNormalized,
-  isInBlackBar,
   streamFromClient,
   videoDisplayArea,
 } from "./pointerMapping";
@@ -99,13 +98,5 @@ describe("hidFromNormalized", () => {
     expect(hidFromNormalized(0.5)).toBe(16384);
     expect(hidFromNormalized(2)).toBe(32767);
     expect(hidFromNormalized(-1)).toBe(0);
-  });
-});
-
-describe("isInBlackBar", () => {
-  it("detects bars", () => {
-    const r = rect(0, 0, 1000, 500);
-    expect(isInBlackBar(100, 250, r, 1000, 1000)).toBe(true);
-    expect(isInBlackBar(500, 250, r, 1000, 1000)).toBe(false);
   });
 });

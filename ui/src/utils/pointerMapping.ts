@@ -16,7 +16,7 @@ export interface DisplayArea extends Size {
   offsetY: number;
 }
 
-export const HID_ABS_MAX = 32767;
+const HID_ABS_MAX = 32767;
 
 /** The part of the element that shows video, relative to the element's top-left. */
 export function videoDisplayArea(
@@ -45,20 +45,6 @@ export function videoDisplayArea(
     area.offsetY = (element.height - area.height) / 2;
   }
   return area;
-}
-
-/** True when the point lies in a black bar rather than on the video. */
-export function isInBlackBar(
-  clientX: number,
-  clientY: number,
-  rect: Rect,
-  streamWidth: number,
-  streamHeight: number,
-): boolean {
-  const a = videoDisplayArea(rect, streamWidth, streamHeight);
-  const x = clientX - rect.left - a.offsetX;
-  const y = clientY - rect.top - a.offsetY;
-  return x < 0 || y < 0 || x > a.width || y > a.height;
 }
 
 /**

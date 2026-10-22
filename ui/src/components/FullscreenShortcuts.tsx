@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LuCommand, LuKeyboard } from "react-icons/lu";
 
 import { useHidStore, useMacrosStore, useSettingsStore, useVideoStore } from "@hooks/stores";
@@ -26,7 +26,7 @@ const STICKY_MODIFIERS = [
  * invisibly, a four-finger tap opens the menu, and a button appears only inside a black bar.
  */
 export default function FullscreenShortcuts() {
-  const { executeMacro, handleKeyPress } = useKeyboard();
+  const { executeMacro, handleKeyPress, resetKeyboardState } = useKeyboard();
   const { macros, initialized, loadMacros, setSendFn } = useMacrosStore();
   const { send } = useJsonRpc();
   const { swipeLeftAction, swipeRightAction } = useSettingsStore();
@@ -34,12 +34,23 @@ export default function FullscreenShortcuts() {
   const { keysDownState, setVirtualKeyboardEnabled } = useHidStore();
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // Leaving fullscreen unmounts this; a held sticky modifier would otherwise stay down on the remote.
+  const resetRef = useRef(resetKeyboardState);
+  resetRef.current = resetKeyboardState;
+  useEffect(
+    () => () => {
+      const held = useHidStore.getState().keysDownState.modifier;
+      if (STICKY_MODIFIERS.some(({ key }) => held & modifiers[key])) void resetRef.current();
+    },
+    [],
+  );
+
   useEffect(() => {
     setSendFn(send);
     if (!initialized) loadMacros();
   }, [initialized, loadMacros, setSendFn, send]);
 
-  useMultiTouchGestures(containerElement, true, g => {
+  useMultiTouchGestures(containerElement, g => {
     if (g.type === "menu") {
       setMenuOpen(open => !open);
       return;

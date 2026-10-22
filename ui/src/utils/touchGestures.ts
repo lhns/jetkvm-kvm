@@ -300,6 +300,7 @@ export function reduceGesture(prev: GestureState, ev: GestureEvent, cfg: Gesture
   }
 
   // up
+  if (!s.fingers.some(f => f.id === ev.id)) return finish(); // a finger we never saw land
   const wasPrimary = ev.id === s.primaryId;
   s.fingers = s.fingers.filter(f => f.id !== ev.id);
   const quick = ev.t - s.tMulti <= cfg.multiTapMax;

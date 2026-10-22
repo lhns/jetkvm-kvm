@@ -183,6 +183,13 @@ export function useTouchInput(mouse: Mouse) {
         showCursor(false);
       }
       resync();
+      if (cursor && state.fingers.length === 0) {
+        // A mouse moved the remote cursor since the last touch: continue from there.
+        const { mouseX, mouseY } = useMouseStore.getState();
+        if (mouseX !== hidFromNormalized(cursor.nx) || mouseY !== hidFromNormalized(cursor.ny)) {
+          cursor = null;
+        }
+      }
       dispatch({ type: "down", id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() });
     };
     const onMove = (e: PointerEvent) => {
