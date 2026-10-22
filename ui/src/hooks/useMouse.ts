@@ -29,12 +29,13 @@ export default function useMouse() {
   // Mouse-related
 
   const sendRelMouseMovement = useCallback(
-    (x: number, y: number, buttons: number) => {
+    (x: number, y: number, buttons: number, locked = false) => {
       if (mouseMode !== "relative") return;
       // if we ignore the event, double-click will not work
       // if (x === 0 && y === 0 && buttons === 0) return;
-      const dx = calcDelta(x);
-      const dy = calcDelta(y);
+      // Pointer lock delivers exact device deltas; the boost is only for slow, unlocked moves.
+      const dx = locked ? x : calcDelta(x);
+      const dy = locked ? y : calcDelta(y);
       // The report carries int8 deltas; a fast flick exceeds that and would be dropped whole.
       for (const [cx, cy] of splitInt8Delta(dx, dy)) {
         if (rpcHidReady) {
@@ -55,7 +56,7 @@ export default function useMouse() {
 
       // Send mouse movement
       const { buttons } = e;
-      sendRelMouseMovement(e.movementX, e.movementY, buttons);
+      sendRelMouseMovement(e.movementX, e.movementY, buttons, !!document.pointerLockElement);
     },
     [sendRelMouseMovement, mouseMode],
   );

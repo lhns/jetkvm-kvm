@@ -17,9 +17,11 @@ import {
   LoadingVideoOverlay,
   NoAutoplayPermissionsOverlay,
   PointerLockBar,
+  PointerLockUnavailableBar,
 } from "@components/VideoOverlay";
 import OcrOverlay from "@components/OcrOverlay";
 import { keys } from "@/keyboardMappings";
+import { isLockAllowed } from "@/utils/lockPermission";
 import notifications from "@/notifications";
 import { m } from "@localizations/messages.js";
 
@@ -48,6 +50,9 @@ export default function WebRTCVideo({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPointerLockActive, setIsPointerLockActive] = useState(false);
   const [isKeyboardLockActive, setIsKeyboardLockActive] = useState(false);
+  // The browser refused the lock (Chrome before 144 on Android, some tablets).
+  const [pointerLockFailed, setPointerLockFailed] = useState(false);
+  const [lastInputWasTouch, setLastInputWasTouch] = useState(false);
 
   const isPointerLockPossible =
     window.location.protocol === "https:" || window.location.hostname === "localhost";
@@ -152,58 +157,37 @@ export default function WebRTCVideo({
   const [pseudoFullscreenPath, setPseudoFullscreenPath] = useState<string | null>(null);
   const isPseudoFullscreen = pseudoFullscreenPath === pathname;
 
-  const checkNavigatorPermissions = useCallback(async (permissionName: string) => {
-    if (!navigator || !navigator.permissions || !navigator.permissions.query) {
-      return false; // if can't query permissions, assume NOT granted
-    }
-
-    try {
-      const name = permissionName as PermissionName;
-      const { state } = await navigator.permissions.query({ name });
-      return state === "granted";
-    } catch {
-      // ignore errors
-    }
-    return false; // if query fails, assume NOT granted
-  }, []);
-
   const requestPointerLock = useCallback(async () => {
     if (!isPointerLockPossible || videoElm.current === null || document.pointerLockElement) return;
+    if (settings.mouseMode !== "relative") return;
 
-    const isPointerLockGranted = await checkNavigatorPermissions("pointer-lock");
-
-    if (isPointerLockGranted && settings.mouseMode === "relative") {
-      try {
-        await videoElm.current.requestPointerLock();
-      } catch {
-        // ignore errors
-      }
+    if (!(await isLockAllowed("pointer-lock"))) {
+      setPointerLockFailed(true);
+      return;
     }
-  }, [checkNavigatorPermissions, isPointerLockPossible, settings.mouseMode]);
+    try {
+      await videoElm.current.requestPointerLock();
+    } catch {
+      setPointerLockFailed(true);
+    }
+  }, [isPointerLockPossible, settings.mouseMode]);
 
   const requestKeyboardLock = useCallback(async () => {
-    if (videoElm.current === null) return;
+    if (videoElm.current === null || !navigator || !("keyboard" in navigator)) return;
+    if (!(await isLockAllowed("keyboard-lock"))) return;
 
-    const isKeyboardLockGranted = await checkNavigatorPermissions("keyboard-lock");
-
-    if (isKeyboardLockGranted && navigator && "keyboard" in navigator) {
-      try {
-        // @ts-expect-error - keyboard lock is not supported in all browsers
-        await navigator.keyboard.lock();
-        setIsKeyboardLockActive(true);
-      } catch {
-        // ignore errors
-      }
+    try {
+      // No key list: lock them all, so browser and OS shortcuts reach the remote.
+      // @ts-expect-error - keyboard lock is not supported in all browsers
+      await navigator.keyboard.lock();
+      setIsKeyboardLockActive(true);
+    } catch {
+      // not supported or refused
     }
-  }, [checkNavigatorPermissions, setIsKeyboardLockActive]);
+  }, [setIsKeyboardLockActive]);
 
+  // Runs when fullscreen has already ended, so it must not depend on the fullscreen element.
   const releaseKeyboardLock = useCallback(async () => {
-    if (
-      fullscreenContainerRef.current === null ||
-      document.fullscreenElement !== fullscreenContainerRef.current
-    )
-      return;
-
     if (navigator && "keyboard" in navigator) {
       try {
         // @ts-expect-error - keyboard unlock is not supported in all browsers
@@ -211,8 +195,8 @@ export default function WebRTCVideo({
       } catch {
         // ignore errors
       }
-      setIsKeyboardLockActive(false);
     }
+    setIsKeyboardLockActive(false);
   }, [setIsKeyboardLockActive]);
 
   useEffect(() => {
@@ -222,6 +206,7 @@ export default function WebRTCVideo({
       if (document.pointerLockElement) {
         notifications.success(m.video_pointer_lock_enabled());
         setIsPointerLockActive(true);
+        setPointerLockFailed(false);
       } else {
         notifications.success(m.video_pointer_lock_disabled());
         setIsPointerLockActive(false);
@@ -232,6 +217,7 @@ export default function WebRTCVideo({
     const signal = abortController.signal;
 
     document.addEventListener("pointerlockchange", handlePointerLockChange, { signal });
+    document.addEventListener("pointerlockerror", () => setPointerLockFailed(true), { signal });
 
     return () => {
       abortController.abort();
@@ -653,6 +639,17 @@ export default function WebRTCVideo({
     ],
   );
 
+  // Pointer lock is for mice; a finger gets no use from the "click to enable" bar.
+  useEffect(() => {
+    const abortController = new AbortController();
+    document.addEventListener(
+      "pointerdown",
+      (e: PointerEvent) => setLastInputWasTouch(e.pointerType === "touch"),
+      { capture: true, signal: abortController.signal },
+    );
+    return () => abortController.abort();
+  }, []);
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   const hasNoAutoPlayPermissions = useMemo(() => {
@@ -667,6 +664,7 @@ export default function WebRTCVideo({
     if (settings.mouseMode !== "relative") return false;
     if (!isPointerLockPossible) return false;
     if (isPointerLockActive) return false;
+    if (pointerLockFailed || lastInputWasTouch) return false;
     if (isVideoLoading) return false;
     if (!isPlaying) return false;
     if (videoHeight === 0 || videoWidth === 0) return false;
@@ -675,6 +673,8 @@ export default function WebRTCVideo({
     isPlaying,
     isPointerLockActive,
     isPointerLockPossible,
+    pointerLockFailed,
+    lastInputWasTouch,
     isVideoLoading,
     settings.mouseMode,
     videoHeight,
@@ -719,6 +719,10 @@ export default function WebRTCVideo({
                   {/* In relative mouse mode and under https, we enable the pointer lock, and to do so we need a bar to show the user to click on the video to enable mouse control */}
                   <PointerLockBar show={showPointerLockBar} />
                   <div className="relative mx-4 my-2 flex items-center justify-center overflow-hidden">
+                    <PointerLockUnavailableBar
+                      show={settings.mouseMode === "relative" && pointerLockFailed}
+                      onSwitchToAbsolute={() => settings.setMouseMode("absolute")}
+                    />
                     <div
                       ref={fullscreenContainerRef}
                       className={cx("relative flex h-full w-full items-center justify-center", {

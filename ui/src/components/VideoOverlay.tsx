@@ -395,6 +395,37 @@ export function PointerLockBar({ show }: PointerLockBarProps) {
   );
 }
 
+interface PointerLockUnavailableBarProps {
+  readonly show: boolean;
+  readonly onSwitchToAbsolute: () => void;
+}
+
+export function PointerLockUnavailableBar({
+  show,
+  onSwitchToAbsolute,
+}: PointerLockUnavailableBarProps) {
+  if (!show) return null;
+  return (
+    <div className="absolute inset-x-0 top-0 z-20 flex justify-center">
+      <Card className="shadow-none outline-0!">
+        <div className="flex items-center space-x-3 border border-slate-800/50 px-4 py-2 outline-0 backdrop-blur-xs dark:border-slate-300/20 dark:bg-slate-800">
+          <BsMouseFill className="h-4 w-4 shrink-0 text-amber-600" />
+          <span className="text-sm text-black dark:text-white">
+            {m.video_overlay_pointerlock_unavailable()}
+          </span>
+          <Button
+            size="XS"
+            theme="primary"
+            text={m.video_overlay_pointerlock_switch_absolute()}
+            data-testid="pointerlock-switch-absolute"
+            onClick={onSwitchToAbsolute}
+          />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 interface RebootingOverlayProps {
   readonly show: boolean;
   readonly postRebootAction: PostRebootAction;
