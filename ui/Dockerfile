@@ -6,6 +6,9 @@ COPY package.json package-lock.json ./
 # which would also skip the native postinstalls swc and friends need.
 RUN npm pkg delete scripts.prepare && npm ci
 COPY . .
+# public/sse.html is a symlink to ../internal/logging/sse.html, outside this context. Left
+# dangling it fails vite's public-dir copy; the UI does not use it.
+RUN rm -f public/sse.html
 # Compiled into the bundle by Vite, with no runtime override. Unset, it falls back to upstream's
 # .env.cloud-production (api.jetkvm.com); the CI workflow sets it. Declared after npm ci so a
 # change does not invalidate the dependency layer.
