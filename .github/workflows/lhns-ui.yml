@@ -104,7 +104,7 @@ jobs:
           # Last-Modified is sent, but a conditional request must never get a 304.
           code=$(curl -s -o /dev/null -w '%{http_code}' -H 'If-Modified-Since: Fri, 01 Jan 2100 00:00:00 GMT' localhost:8080/)
           [ "$code" = 200 ] || { echo "conditional GET / -> $code"; exit 1; }
-          asset=$(docker exec ui sh -c 'cd /usr/share/nginx/html/assets && ls | head -n 1')
+          asset=$(docker exec ui sh -c 'cd /usr/share/nginx/html/assets && find . -type f -name "*.js" | head -n 1 | cut -c3-'  )
           check "/assets/$asset" 200 '^cache-control: .*immutable' -
           check /assets/missing.js 404 - -
           check /favicon.ico 200 - -
