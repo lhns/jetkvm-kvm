@@ -314,11 +314,16 @@ export default function SettingsMouseRoute() {
             </button>
           </div>
         </div>
-        <TouchSettings />
-        <div className="space-y-4">
-          <SettingsItem title={m.swipe_title()} description={m.swipe_section_description()} />
-          <SwipeActionSettings />
-        </div>
+        {/* Not detected on desktops without a touch screen; the setting would do nothing there. */}
+        {navigator.maxTouchPoints > 0 && (
+          <>
+            <TouchSettings />
+            <div className="space-y-4">
+              <SettingsItem title={m.swipe_title()} description={m.swipe_section_description()} />
+              <SwipeActionSettings />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

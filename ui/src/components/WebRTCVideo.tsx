@@ -11,7 +11,6 @@ import { useTouchInput } from "@hooks/useTouchInput";
 import { useRTCStore, useSettingsStore, useUiStore, useVideoStore } from "@hooks/stores";
 import VirtualKeyboard from "@components/VirtualKeyboard";
 import FullscreenShortcuts from "@components/FullscreenShortcuts";
-import TouchCursorMarker from "@components/TouchCursorMarker";
 import Actionbar from "@components/ActionBar";
 import MacroBar from "@components/MacroBar";
 import InfoBar from "@components/InfoBar";
@@ -72,7 +71,7 @@ export default function WebRTCVideo({
     getMouseWheelHandler,
     resetMousePosition,
   } = mouse;
-  const { cursorVisible: touchCursorVisible } = useTouchInput(mouse);
+  useTouchInput(mouse);
   const {
     setClientSize: setVideoClientSize,
     setSize: setVideoSize,
@@ -771,7 +770,6 @@ export default function WebRTCVideo({
                           },
                         )}
                       />
-                      <TouchCursorMarker visible={touchCursorVisible} />
                       <OcrOverlay />
                       {peerConnection?.connectionState == "connected" && !hasConnectionIssues && (
                         <div

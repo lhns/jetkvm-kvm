@@ -1,87 +1,77 @@
-import { useSettingsStore } from "@hooks/stores";
-import { Checkbox } from "@components/Checkbox";
-import { SelectMenuBasic } from "@components/SelectMenuBasic";
+import type { ReactNode } from "react";
+import { CheckCircleIcon } from "@heroicons/react/16/solid";
+import { CursorArrowRaysIcon } from "@heroicons/react/24/outline";
+
+import { cx } from "@/cva.config";
+import PointingFinger from "@assets/pointing-finger.svg";
+import { type TouchInput, useSettingsStore } from "@hooks/stores";
+import { GridCard } from "@components/Card";
 import { SettingsItem } from "@components/SettingsItem";
 import { m } from "@localizations/messages.js";
 
-const SENSITIVITIES = [0.5, 0.75, 1, 1.5, 2, 3];
-const TAP_DELAYS = [100, 150, 180, 250, 350, 500];
-const LONG_PRESSES = [350, 450, 550, 700, 900];
-
-/** A saved number that is no longer on offer stays selectable instead of snapping to the first. */
-const numberOptions = (values: number[], current: number, label: (v: number) => string) =>
-  (values.includes(current) ? values : [...values, current].sort((a, b) => a - b)).map(v => ({
-    value: String(v),
-    label: label(v),
-  }));
+function TouchOption({
+  value,
+  icon,
+  title,
+  description,
+}: {
+  value: TouchInput;
+  icon: ReactNode;
+  title: string;
+  description: string;
+}) {
+  const { touchInput, setTouchInput } = useSettingsStore();
+  return (
+    <button className="group block grow" onClick={() => setTouchInput(value)}>
+      <GridCard>
+        <div className="flex w-full items-center gap-x-4 px-4 py-3">
+          {icon}
+          <div className="flex grow items-center justify-between">
+            <div className="text-left">
+              <h3 className="text-sm font-semibold text-black dark:text-white">{title}</h3>
+              <p className="text-xs leading-tight text-slate-800 dark:text-slate-300">
+                {description}
+              </p>
+            </div>
+            <CheckCircleIcon
+              className={cx(
+                "h-4 w-4 shrink-0 text-blue-700 opacity-0 transition dark:text-blue-500",
+                {
+                  "opacity-100": touchInput === value,
+                },
+              )}
+            />
+          </div>
+        </div>
+      </GridCard>
+    </button>
+  );
+}
 
 export default function TouchSettings() {
-  const {
-    touchStyle,
-    setTouchStyle,
-    touchSensitivity,
-    setTouchSensitivity,
-    touchTapDrag,
-    setTouchTapDrag,
-    touchTapDelay,
-    setTouchTapDelay,
-    touchLongPress,
-    setTouchLongPress,
-  } = useSettingsStore();
-  const ms = (v: number) => m.touch_ms({ ms: v });
-
   return (
     <div className="space-y-4">
-      <SettingsItem title={m.touch_title()} description={m.touch_description()} />
-      <SettingsItem title={m.touch_style_title()} description={m.touch_style_description()}>
-        <SelectMenuBasic
-          size="SM"
-          label=""
-          value={touchStyle}
-          onChange={e => setTouchStyle(e.target.value)}
-          options={[
-            { value: "touchpad", label: m.touch_style_touchpad() },
-            { value: "direct", label: m.touch_style_direct() },
-          ]}
+      <SettingsItem title={m.touch_input_title()} description={m.touch_input_description()} />
+      <div className="flex items-center gap-4">
+        <TouchOption
+          value="direct"
+          icon={
+            <img
+              className="w-6 shrink-0 dark:invert"
+              src={PointingFinger}
+              alt={m.mouse_alt_finger()}
+            />
+          }
+          title={m.touch_input_direct()}
+          description={m.touch_input_direct_description()}
         />
-      </SettingsItem>
-      <SettingsItem
-        title={m.touch_sensitivity_title()}
-        description={m.touch_sensitivity_description()}
-      >
-        <SelectMenuBasic
-          size="SM"
-          label=""
-          value={String(touchSensitivity)}
-          onChange={e => setTouchSensitivity(Number(e.target.value))}
-          options={numberOptions(SENSITIVITIES, touchSensitivity, v => `${v}x`)}
+        <TouchOption
+          value="trackpad"
+          icon={<CursorArrowRaysIcon aria-hidden className="w-6 shrink-0 dark:text-white" />}
+          title={m.touch_input_trackpad()}
+          description={m.touch_input_trackpad_description()}
         />
-      </SettingsItem>
-      <SettingsItem title={m.touch_tap_drag_title()} description={m.touch_tap_drag_description()}>
-        <Checkbox checked={touchTapDrag} onChange={e => setTouchTapDrag(e.target.checked)} />
-      </SettingsItem>
-      <SettingsItem title={m.touch_tap_delay_title()} description={m.touch_tap_delay_description()}>
-        <SelectMenuBasic
-          size="SM"
-          label=""
-          value={String(touchTapDelay)}
-          disabled={!touchTapDrag}
-          onChange={e => setTouchTapDelay(Number(e.target.value))}
-          options={numberOptions(TAP_DELAYS, touchTapDelay, ms)}
-        />
-      </SettingsItem>
-      <SettingsItem
-        title={m.touch_long_press_title()}
-        description={m.touch_long_press_description()}
-      >
-        <SelectMenuBasic
-          size="SM"
-          label=""
-          value={String(touchLongPress)}
-          onChange={e => setTouchLongPress(Number(e.target.value))}
-          options={numberOptions(LONG_PRESSES, touchLongPress, ms)}
-        />
-      </SettingsItem>
+      </div>
     </div>
   );
 }
