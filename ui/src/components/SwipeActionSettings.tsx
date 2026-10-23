@@ -37,6 +37,7 @@ export default function SwipeActionSettings() {
         <SelectMenuBasic
           size="SM"
           label=""
+          className="min-w-36"
           value={swipeLeftAction}
           onChange={e => setSwipeLeftAction(e.target.value)}
           options={optionsFor("←", swipeLeftAction)}
@@ -46,6 +47,7 @@ export default function SwipeActionSettings() {
         <SelectMenuBasic
           size="SM"
           label=""
+          className="min-w-36"
           value={swipeRightAction}
           onChange={e => setSwipeRightAction(e.target.value)}
           options={optionsFor("→", swipeRightAction)}
