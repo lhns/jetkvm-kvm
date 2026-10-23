@@ -23,6 +23,6 @@ COPY --from=build /src/dist /usr/share/nginx/html
 RUN chmod -R a+rX /usr/share/nginx/html
 # SPA fallback, but not for /assets/: a missing hashed bundle must stay a 404, or a stale deploy
 # looks like a page that renders nothing, with 200s all the way down. index.html must revalidate
-# on every load (no validators, no-cache) so a browser never keeps one pointing at gone chunks.
+# on every load (no-cache, no ETag, If-Modified-Since ignored) so a browser never keeps one pointing at gone chunks.
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 8080

@@ -99,8 +99,11 @@ jobs:
             [ "$3" = - ] || grep -qiE "$3" h.txt || { echo "missing header $3"; exit 1; }
             [ "$4" = - ] || ! grep -qiE "$4" h.txt || { echo "unexpected header $4"; exit 1; }
           }
-          check / 200 '^cache-control: no-cache' '^(etag|last-modified):'
-          check /devices/x 200 '^cache-control: no-cache' '^(etag|last-modified):'
+          check / 200 '^cache-control: no-cache' '^etag:'
+          check /devices/x 200 '^cache-control: no-cache' '^etag:'
+          # Last-Modified is sent, but a conditional request must never get a 304.
+          code=$(curl -s -o /dev/null -w '%{http_code}' -H 'If-Modified-Since: Fri, 01 Jan 2100 00:00:00 GMT' localhost:8080/)
+          [ "$code" = 200 ] || { echo "conditional GET / -> $code"; exit 1; }
           asset=$(docker exec ui sh -c 'cd /usr/share/nginx/html/assets && ls | head -n 1')
           check "/assets/$asset" 200 '^cache-control: .*immutable' -
           check /assets/missing.js 404 - -
