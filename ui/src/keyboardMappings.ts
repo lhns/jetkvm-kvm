@@ -129,7 +129,7 @@ export const keys = {
   Lang7: 0x96,
   Lang8: 0x97,
   Lang9: 0x98,
-  Menu: 0x76,
+  Menu: 0x65, // Application. Keyboard Menu (0x76) is ignored by Windows.
   MetaLeft: 0xe3,
   MetaRight: 0xe7,
   Minus: 0x2d,
