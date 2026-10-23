@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  clientFromStream,
-  hidFromNormalized,
-  streamFromClient,
-  videoDisplayArea,
-} from "./pointerMapping";
+import { hidFromNormalized, streamFromClient, videoDisplayArea } from "./pointerMapping";
 
 const rect = (left: number, top: number, width: number, height: number) => ({
   left,
@@ -73,21 +68,6 @@ describe("streamFromClient", () => {
   it("returns null while sizes are unknown", () => {
     expect(streamFromClient(1, 1, rect(0, 0, 0, 0), 1920, 1080)).toBeNull();
     expect(streamFromClient(1, 1, rect(0, 0, 100, 100), 0, 0)).toBeNull();
-  });
-
-  it("round-trips through clientFromStream", () => {
-    const r = rect(40, 20, 800, 600);
-    for (const [nx, ny] of [
-      [0, 0],
-      [0.5, 0.5],
-      [1, 1],
-      [0.123, 0.987],
-    ]) {
-      const c = clientFromStream(nx, ny, r, 1920, 1080);
-      const back = streamFromClient(c.clientX, c.clientY, r, 1920, 1080);
-      expect(back?.nx).toBeCloseTo(nx, 9);
-      expect(back?.ny).toBeCloseTo(ny, 9);
-    }
   });
 });
 

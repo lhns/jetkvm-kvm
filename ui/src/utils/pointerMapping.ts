@@ -65,23 +65,6 @@ export function streamFromClient(
   return { nx: x / a.width, ny: y / a.height };
 }
 
-/** Inverse of streamFromClient: a 0..1 position on the remote screen -> client point. */
-export function clientFromStream(
-  nx: number,
-  ny: number,
-  rect: Rect,
-  streamWidth: number,
-  streamHeight: number,
-): { clientX: number; clientY: number } {
-  const a = videoDisplayArea(rect, streamWidth, streamHeight);
-  return {
-    clientX: rect.left + a.offsetX + nx * a.width,
-    clientY: rect.top + a.offsetY + ny * a.height,
-  };
-}
-
 /** Fraction 0..1 -> HID absolute coordinate 0..32767. */
 export const hidFromNormalized = (n: number) =>
   Math.round(Math.min(Math.max(n, 0), 1) * HID_ABS_MAX);
-
-export const normalizedFromHid = (v: number) => Math.min(Math.max(v, 0), HID_ABS_MAX) / HID_ABS_MAX;

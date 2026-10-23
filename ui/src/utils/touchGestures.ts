@@ -1,39 +1,37 @@
 // Touch gestures as a pure reducer: events and a clock in, mouse actions and the next
 // deadline out. useTouchInput feeds it pointer events and timers and performs the actions.
 //
-// Touchpad style (always used for the relative mouse): one finger moves, a tap clicks after
-// `tapDelay`, double-tap and hold then drag, two fingers scroll or right-click, three
-// fingers middle-click, a still long press right-clicks on release.
-// Direct style: touching puts the cursor under the finger, moving presses and drags.
+// Trackpad (relative reports): one finger moves, a tap clicks after `tapDelay`, double-tap
+// and hold then drag, two fingers scroll or right-click, three fingers middle-click, a still
+// long press right-clicks on release.
+// Direct touch (absolute reports): touching puts the pointer under the finger, moving presses
+// and drags, a second tap close to the first lands on the same point (a double click).
+
+/** Fixed timings (ms) and thresholds (CSS px). */
+export const TOUCH = {
+  /** A tap lifts before this; still this long is press-and-hold (haptic, right click on release). */
+  holdMs: 550,
+  /** Movement below this still counts as a tap or a hold. */
+  slop: 10,
+  /** Direct: a touch landing within this of the previous tap's lift... */
+  doubleTapMs: 500,
+  /** ...and within this of its point lands on that point. */
+  doubleTapDist: 16,
+  /** Direct: a drag starting this soon after landing waits, so a second finger can still make it a scroll. */
+  graceMs: 100,
+  /** Trackpad: a tap's click is held back this long, so a second tap can still become a drag. */
+  tapDelay: 180,
+  /** Trackpad: second touch held still this long presses and holds. */
+  holdDelay: 300,
+  /** CSS px of two-finger travel per wheel step. */
+  scrollStep: 24,
+  /** Two or three fingers lifting within this are a tap. */
+  multiTapMax: 400,
+} as const;
 
 export interface GestureConfig {
-  mode: "touchpad" | "direct";
-  /** Touchpad: a tap's click is held back this long, so a second tap can still become a drag. */
-  tapDelay: number;
-  /** Still for this long gives a haptic pulse; releasing then right-clicks. */
-  longPress: number;
-  /** Off: taps click at once and there is no tap-and-drag. */
-  tapDrag: boolean;
-  /** Touchpad: second touch held still this long presses and holds. */
-  holdDelay: number;
-  /** Movement below this (CSS px) still counts as a tap or a hold. */
-  slop: number;
-  /** CSS px of two-finger travel per wheel step. */
-  scrollStep: number;
-  /** Two or three fingers lifting within this are a tap. */
-  multiTapMax: number;
+  mode: "direct" | "trackpad";
 }
-
-export const DEFAULT_GESTURE_CONFIG: GestureConfig = {
-  mode: "touchpad",
-  tapDelay: 180,
-  longPress: 550,
-  tapDrag: true,
-  holdDelay: 300,
-  slop: 10,
-  scrollStep: 24,
-  multiTapMax: 400,
-};
 
 export type Button = "left" | "right" | "middle";
 
@@ -45,9 +43,9 @@ export type GestureEvent =
   | { type: "tick"; t: number };
 
 export type GestureAction =
-  /** Touchpad: relative movement in CSS px; `dt` ms since the previous move, for acceleration. */
-  | { kind: "move"; dx: number; dy: number; dt: number }
-  /** Direct: put the cursor under this client point. */
+  /** Trackpad: relative movement in CSS px. */
+  | { kind: "move"; dx: number; dy: number }
+  /** Direct: put the pointer on this client point. */
   | { kind: "moveTo"; x: number; y: number }
   | { kind: "button"; button: Button; down: boolean }
   | { kind: "click"; button: Button }
@@ -68,8 +66,15 @@ type Phase = "idle" | "one" | "tap2" | "drag" | "two" | "three" | "many" | "done
 export interface GestureState {
   phase: Phase;
   fingers: Finger[];
-  /** Touchpad: a tap whose click is still held back until this time. */
+  /** Trackpad: a tap whose click is still held back until this time. */
   pendingClickAt: number | null;
+  /** Direct: a drag that started inside the grace period presses at this time. */
+  graceAt: number | null;
+  /** Direct: where the gesture's pointer sits (the landing point, or the snapped one). */
+  ax: number;
+  ay: number;
+  /** Direct: pointer point and lift time of the last left-click tap, for the double-tap snap. */
+  lastTap: { x: number; y: number; t: number } | null;
   /** Landing time of the gesture's first finger. */
   t0: number;
   /** Time the current two/three-finger phase began. */
@@ -81,7 +86,6 @@ export interface GestureState {
   primaryId: number;
   lastX: number;
   lastY: number;
-  lastT: number;
   /** Two fingers: centroid at the start and scroll remainder. */
   cx0: number;
   cy0: number;
@@ -98,6 +102,10 @@ export const initialGestureState = (): GestureState => ({
   phase: "idle",
   fingers: [],
   pendingClickAt: null,
+  graceAt: null,
+  ax: 0,
+  ay: 0,
+  lastTap: null,
   t0: 0,
   tMulti: 0,
   moved: false,
@@ -106,7 +114,6 @@ export const initialGestureState = (): GestureState => ({
   primaryId: -1,
   lastX: 0,
   lastY: 0,
-  lastT: 0,
   cx0: 0,
   cy0: 0,
   cxLast: 0,
@@ -129,11 +136,12 @@ const centroid = (fs: Finger[]) => ({
   y: fs.reduce((a, f) => a + f.y, 0) / fs.length,
 });
 
-function deadlineOf(s: GestureState, cfg: GestureConfig): number | null {
+function deadlineOf(s: GestureState): number | null {
   const ds: number[] = [];
   if (s.pendingClickAt !== null) ds.push(s.pendingClickAt);
-  if (s.phase === "one" && !s.moved && !s.longArmed) ds.push(s.t0 + cfg.longPress);
-  if (s.phase === "tap2") ds.push(s.t0 + cfg.holdDelay);
+  if (s.graceAt !== null) ds.push(s.graceAt);
+  if (s.phase === "one" && !s.moved && !s.longArmed) ds.push(s.t0 + TOUCH.holdMs);
+  if (s.phase === "tap2") ds.push(s.t0 + TOUCH.holdDelay);
   return ds.length ? Math.min(...ds) : null;
 }
 
@@ -142,7 +150,7 @@ export function reduceGesture(prev: GestureState, ev: GestureEvent, cfg: Gesture
   const out: GestureAction[] = [];
   const direct = cfg.mode === "direct";
 
-  const finish = (): Reduced => ({ state: s, actions: out, deadline: deadlineOf(s, cfg) });
+  const finish = (): Reduced => ({ state: s, actions: out, deadline: deadlineOf(s) });
 
   const press = () => {
     s.pressed = true;
@@ -151,6 +159,14 @@ export function reduceGesture(prev: GestureState, ev: GestureEvent, cfg: Gesture
   const release = () => {
     if (s.pressed) out.push({ kind: "button", button: "left", down: false });
     s.pressed = false;
+  };
+  /** Direct: press at the gesture's anchor, then follow the finger to where it is now. */
+  const startDrag = (f: Finger) => {
+    s.graceAt = null;
+    s.phase = "drag";
+    out.push({ kind: "moveTo", x: s.ax, y: s.ay });
+    press();
+    out.push({ kind: "moveTo", x: f.x, y: f.y });
   };
 
   if (ev.type === "cancel") {
@@ -167,11 +183,12 @@ export function reduceGesture(prev: GestureState, ev: GestureEvent, cfg: Gesture
       out.push({ kind: "click", button: "left" });
       s.pendingClickAt = null;
     }
-    if (s.phase === "one" && !s.moved && !s.longArmed && ev.t - s.t0 >= cfg.longPress) {
+    if (s.graceAt !== null && ev.t >= s.graceAt) startDrag(s.fingers[0]);
+    if (s.phase === "one" && !s.moved && !s.longArmed && ev.t - s.t0 >= TOUCH.holdMs) {
       s.longArmed = true;
       out.push({ kind: "haptic" });
     }
-    if (s.phase === "tap2" && ev.t - s.t0 >= cfg.holdDelay) {
+    if (s.phase === "tap2" && ev.t - s.t0 >= TOUCH.holdDelay) {
       // Touch held still on the second tap: press and hold.
       s.phase = "drag";
       press();
@@ -190,9 +207,18 @@ export function reduceGesture(prev: GestureState, ev: GestureEvent, cfg: Gesture
       s.primaryId = ev.id;
       s.lastX = ev.x;
       s.lastY = ev.y;
-      s.lastT = ev.t;
       if (direct) {
-        out.push({ kind: "moveTo", x: ev.x, y: ev.y });
+        // A second tap close to the first lands on the same point, so the host sees a
+        // double click. The finger's own landing point still decides tap versus drag.
+        const tap = s.lastTap;
+        const snap =
+          tap !== null &&
+          ev.t - tap.t <= TOUCH.doubleTapMs &&
+          Math.hypot(ev.x - tap.x, ev.y - tap.y) <= TOUCH.doubleTapDist;
+        s.ax = snap ? tap.x : ev.x;
+        s.ay = snap ? tap.y : ev.y;
+        s.lastTap = null;
+        out.push({ kind: "moveTo", x: s.ax, y: s.ay });
         s.phase = "one";
       } else if (s.pendingClickAt !== null) {
         // Second tap of a double-tap: the held-back click becomes a double-click, a drag or
@@ -206,6 +232,8 @@ export function reduceGesture(prev: GestureState, ev: GestureEvent, cfg: Gesture
       // A drag keeps its finger; extra ones are ignored.
     } else if (n === 2 && (s.phase === "one" || s.phase === "tap2")) {
       if (s.phase === "tap2") out.push({ kind: "click", button: "left" });
+      s.graceAt = null; // a drag that was waiting becomes a scroll
+      s.lastTap = null;
       s.phase = "two";
       s.tMulti = ev.t;
       s.multiMoved = false;
@@ -231,49 +259,41 @@ export function reduceGesture(prev: GestureState, ev: GestureEvent, cfg: Gesture
     f.y = ev.y;
 
     if (s.phase === "one" && f.id === s.primaryId) {
-      if (!s.moved && Math.hypot(f.x - f.sx, f.y - f.sy) > cfg.slop) {
+      if (!s.moved && Math.hypot(f.x - f.sx, f.y - f.sy) > TOUCH.slop) {
         s.moved = true;
         s.longArmed = false;
-        if (direct) {
-          out.push({ kind: "moveTo", x: f.sx, y: f.sy });
-          s.phase = "drag";
-          press();
-          out.push({ kind: "moveTo", x: f.x, y: f.y });
-        } else {
-          out.push({ kind: "move", dx: f.x - f.sx, dy: f.y - f.sy, dt: ev.t - s.t0 });
-        }
+        s.lastTap = null;
+        if (!direct) out.push({ kind: "move", dx: f.x - f.sx, dy: f.y - f.sy });
+        else if (ev.t - s.t0 < TOUCH.graceMs) s.graceAt = s.t0 + TOUCH.graceMs;
+        else startDrag(f);
         s.lastX = f.x;
         s.lastY = f.y;
-        s.lastT = ev.t;
-      } else if (s.moved) {
-        out.push({ kind: "move", dx: f.x - s.lastX, dy: f.y - s.lastY, dt: ev.t - s.lastT });
+      } else if (s.moved && !direct) {
+        out.push({ kind: "move", dx: f.x - s.lastX, dy: f.y - s.lastY });
         s.lastX = f.x;
         s.lastY = f.y;
-        s.lastT = ev.t;
       }
     } else if (s.phase === "tap2" && f.id === s.primaryId) {
-      if (Math.hypot(f.x - f.sx, f.y - f.sy) > cfg.slop) {
+      if (Math.hypot(f.x - f.sx, f.y - f.sy) > TOUCH.slop) {
         // Tap, then touch and move: drag. No click went out first, so a title bar drag does
         // not also double-click.
         s.phase = "drag";
         press();
-        out.push({ kind: "move", dx: f.x - f.sx, dy: f.y - f.sy, dt: ev.t - s.t0 });
+        out.push({ kind: "move", dx: f.x - f.sx, dy: f.y - f.sy });
         s.lastX = f.x;
         s.lastY = f.y;
-        s.lastT = ev.t;
       }
     } else if (s.phase === "drag" && f.id === s.primaryId) {
       if (direct) {
         out.push({ kind: "moveTo", x: f.x, y: f.y });
       } else {
-        out.push({ kind: "move", dx: f.x - s.lastX, dy: f.y - s.lastY, dt: ev.t - s.lastT });
+        out.push({ kind: "move", dx: f.x - s.lastX, dy: f.y - s.lastY });
       }
       s.lastX = f.x;
       s.lastY = f.y;
-      s.lastT = ev.t;
     } else if (s.phase === "two") {
       const c = centroid(s.fingers.slice(0, 2));
-      if (!s.scrolling && Math.hypot(c.x - s.cx0, c.y - s.cy0) > cfg.slop) {
+      if (!s.scrolling && Math.hypot(c.x - s.cx0, c.y - s.cy0) > TOUCH.slop) {
         s.scrolling = true;
         s.multiMoved = true;
         s.cxLast = s.cx0;
@@ -284,35 +304,44 @@ export function reduceGesture(prev: GestureState, ev: GestureEvent, cfg: Gesture
         s.accY += c.y - s.cyLast;
         s.cxLast = c.x;
         s.cyLast = c.y;
-        const sx = Math.trunc(s.accX / cfg.scrollStep);
-        const sy = Math.trunc(s.accY / cfg.scrollStep);
+        const sx = Math.trunc(s.accX / TOUCH.scrollStep);
+        const sy = Math.trunc(s.accY / TOUCH.scrollStep);
         if (sx || sy) {
-          s.accX -= sx * cfg.scrollStep;
-          s.accY -= sy * cfg.scrollStep;
+          s.accX -= sx * TOUCH.scrollStep;
+          s.accY -= sy * TOUCH.scrollStep;
           // Fingers moving up scroll the page down.
           out.push({ kind: "scroll", x: -sx || 0, y: -sy || 0 });
         }
       }
     } else if (s.phase === "three") {
-      if (Math.hypot(f.x - f.sx, f.y - f.sy) > cfg.slop) s.multiMoved = true;
+      if (Math.hypot(f.x - f.sx, f.y - f.sy) > TOUCH.slop) s.multiMoved = true;
     }
     return finish();
   }
 
   // up
-  if (!s.fingers.some(f => f.id === ev.id)) return finish(); // a finger we never saw land
+  const lifted = s.fingers.find(f => f.id === ev.id);
+  if (!lifted) return finish(); // a finger we never saw land
   const wasPrimary = ev.id === s.primaryId;
   s.fingers = s.fingers.filter(f => f.id !== ev.id);
-  const quick = ev.t - s.tMulti <= cfg.multiTapMax;
+  const quick = ev.t - s.tMulti <= TOUCH.multiTapMax;
 
   switch (s.phase) {
     case "one":
-      if (!s.moved) {
+      if (s.graceAt !== null) {
+        // Lifted before the drag pressed: still a short drag, not a click.
+        startDrag(lifted);
+        release();
+      } else if (!s.moved) {
         // A late timer must not turn a long press into a tap.
-        if (s.longArmed || ev.t - s.t0 >= cfg.longPress)
+        if (s.longArmed || ev.t - s.t0 >= TOUCH.holdMs) {
           out.push({ kind: "click", button: "right" });
-        else if (direct || !cfg.tapDrag) out.push({ kind: "click", button: "left" });
-        else s.pendingClickAt = ev.t + cfg.tapDelay;
+        } else if (direct) {
+          out.push({ kind: "click", button: "left" });
+          s.lastTap = { x: s.ax, y: s.ay, t: ev.t };
+        } else {
+          s.pendingClickAt = ev.t + TOUCH.tapDelay;
+        }
       }
       s.phase = "idle";
       break;
@@ -343,40 +372,12 @@ export function reduceGesture(prev: GestureState, ev: GestureEvent, cfg: Gesture
     s.moved = false;
     s.longArmed = false;
     s.scrolling = false;
+    s.graceAt = null;
   }
   return finish();
 }
 
-// --- cursor and pointer maths -------------------------------------------------------
-
-/**
- * Speed (CSS px per ms) to a gain: slow moves stay precise, fast flicks cover distance.
- * `sensitivity` scales the whole curve.
- */
-export function gainFor(speed: number, sensitivity: number): number {
-  const v = Math.min(Math.max(speed, 0), 3);
-  return sensitivity * (1 + 0.8 * v);
-}
-
-export function speedOf(dx: number, dy: number, dtMs: number): number {
-  return Math.hypot(dx, dy) / Math.max(dtMs, 4);
-}
-
-/** Moves a virtual cursor (fractions 0..1 of the remote screen), clamped to the screen. */
-export function moveVirtualCursor(
-  cursor: { nx: number; ny: number },
-  dx: number,
-  dy: number,
-  gain: number,
-  displayed: { width: number; height: number },
-): { nx: number; ny: number } {
-  if (!(displayed.width > 0 && displayed.height > 0)) return cursor;
-  const clamp = (v: number) => Math.min(Math.max(v, 0), 1);
-  return {
-    nx: clamp(cursor.nx + (dx * gain) / displayed.width),
-    ny: clamp(cursor.ny + (dy * gain) / displayed.height),
-  };
-}
+// --- pointer maths ------------------------------------------------------------------
 
 /** CSS px on screen to remote screen pixels (the relative mouse unit). */
 export function toStreamDelta(
