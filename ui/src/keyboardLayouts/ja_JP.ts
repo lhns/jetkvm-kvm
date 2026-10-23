@@ -94,7 +94,6 @@ export const virtualKeyboard = {
   ...en_US.virtualKeyboard,
   main: {
     default: [
-      "CtrlAltDelete AltMetaEscape CtrlAltBackspace",
       "Escape F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12",
       "Backquote Digit1 Digit2 Digit3 Digit4 Digit5 Digit6 Digit7 Digit8 Digit9 Digit0 Minus Equal Yen Backspace",
       "Tab KeyQ KeyW KeyE KeyR KeyT KeyY KeyU KeyI KeyO KeyP BracketLeft BracketRight Enter",
@@ -103,7 +102,6 @@ export const virtualKeyboard = {
       "ControlLeft MetaLeft AltLeft Muhenkan Space Henkan KatakanaHiragana AltRight MetaRight ContextMenu ControlRight",
     ],
     shift: [
-      "CtrlAltDelete AltMetaEscape CtrlAltBackspace",
       "Escape F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12",
       "Backquote (Digit1) (Digit2) (Digit3) (Digit4) (Digit5) (Digit6) (Digit7) (Digit8) (Digit9) (Digit0) (Minus) (Equal) (Yen) (Backspace)",
       "Tab (KeyQ) (KeyW) (KeyE) (KeyR) (KeyT) (KeyY) (KeyU) (KeyI) (KeyO) (KeyP) (BracketLeft) (BracketRight) Enter",

@@ -24,7 +24,7 @@ function KeyboardWrapper() {
   const { isAttachedVirtualKeyboardVisible, setAttachedVirtualKeyboardVisibility } = useUiStore();
   const { keyboardLedState, keysDownState, isVirtualKeyboardEnabled, setVirtualKeyboardEnabled } =
     useHidStore();
-  const { handleKeyPress, executeMacro } = useKeyboard();
+  const { handleKeyPress } = useKeyboard();
   const { selectedKeyboard } = useKeyboardLayout();
 
   const [isDragging, setIsDragging] = useState(false);
@@ -149,26 +149,6 @@ function KeyboardWrapper() {
       e?.preventDefault();
       e?.stopPropagation();
 
-      // handle the fake key-macros we have defined for common combinations
-      if (key === "CtrlAltDelete") {
-        await executeMacro([
-          { keys: ["Delete"], modifiers: ["ControlLeft", "AltLeft"], delay: 100 },
-        ]);
-        return;
-      }
-
-      if (key === "AltMetaEscape") {
-        await executeMacro([{ keys: ["Escape"], modifiers: ["AltLeft", "MetaLeft"], delay: 100 }]);
-        return;
-      }
-
-      if (key === "CtrlAltBackspace") {
-        await executeMacro([
-          { keys: ["Backspace"], modifiers: ["ControlLeft", "AltLeft"], delay: 100 },
-        ]);
-        return;
-      }
-
       // if they press any of the latching keys, we send a keypress down event and the release it automatically (on timer)
       if (latchingKeys.includes(key)) {
         console.debug(`Latching key pressed: ${key} sending down and delayed up pair`);
@@ -193,7 +173,7 @@ function KeyboardWrapper() {
       void handleKeyPress(keys[cleanKey], true);
       setTimeout(() => void handleKeyPress(keys[cleanKey], false), 50);
     },
-    [executeMacro, handleKeyPress, keyNamesForDownKeys],
+    [handleKeyPress, keyNamesForDownKeys],
   );
 
   return (
@@ -284,10 +264,6 @@ function KeyboardWrapper() {
                       onKeyPress={onKeyDown}
                       onKeyReleased={onKeyUp}
                       buttonTheme={[
-                        {
-                          class: "combination-key",
-                          buttons: "CtrlAltDelete AltMetaEscape CtrlAltBackspace",
-                        },
                         {
                           class: "down-key",
                           buttons: keyNamesForDownKeys.join(" "),

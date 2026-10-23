@@ -223,10 +223,6 @@ video::-webkit-media-controls {
   background: none;
 }
 
-.simple-keyboard-main.simple-keyboard .hg-row:first-child {
-  @apply mb-[10px];
-}
-
 .simple-keyboard-arrows.simple-keyboard {
   @apply self-end;
   background: none;
@@ -319,10 +315,6 @@ video::-webkit-media-controls {
 
 .hg-button.hg-standardBtn[data-skbtn="Space"] {
   @apply md:w-[350px]!;
-}
-
-.hg-theme-default .hg-row .combination-key {
-  @apply inline-flex h-auto! w-auto! grow-0 py-1 text-xs;
 }
 
 .hg-theme-default .hg-row .down-key {
