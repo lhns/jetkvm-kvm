@@ -218,9 +218,34 @@ video::-webkit-media-controls {
   display: inline-block;
 }
 
+/*
+ * Keyboard layout. Side by side vs. stacked, key height and the height cap come from
+ * useKeyboardFit: data-kb-stacked on the card, --kb-key-h and --kb-max-h on it.
+ */
+.kb-body {
+  @apply flex flex-row;
+}
+
+[data-kb-stacked] .kb-body {
+  @apply flex-col;
+}
+
 .simple-keyboard-main.simple-keyboard {
-  @apply w-full md:w-[80%];
+  @apply w-[80%];
   background: none;
+}
+
+[data-kb-stacked] .simple-keyboard-main.simple-keyboard {
+  @apply w-full;
+}
+
+.simple-keyboard.hg-theme-default .hg-button {
+  height: var(--kb-key-h, 40px);
+  font-size: clamp(10px, calc(var(--kb-key-h, 40px) * 0.42), 16px);
+}
+
+.simple-keyboard.hg-theme-default .hg-row:not(:last-child) {
+  margin-bottom: 4px;
 }
 
 .simple-keyboard-arrows.simple-keyboard {
@@ -249,8 +274,18 @@ video::-webkit-media-controls {
 }
 
 .controlArrows {
-  @apply flex w-full items-center justify-between md:w-1/5;
+  @apply flex w-1/5 items-center justify-between;
   flex-flow: column;
+}
+
+/* Control and arrow keys next to each other: three rows instead of five. */
+[data-kb-stacked] .controlArrows {
+  @apply w-full items-end justify-center gap-x-3;
+  flex-flow: row;
+}
+
+[data-kb-stacked] .controlArrows .simple-keyboard {
+  @apply w-auto;
 }
 
 .simple-keyboard-control.simple-keyboard {
@@ -262,7 +297,11 @@ video::-webkit-media-controls {
 }
 
 .controlArrows .simple-keyboard-control.simple-keyboard .hg-row:first-child {
-  @apply mb-[4px] md:mb-[10px];
+  @apply mb-[10px];
+}
+
+[data-kb-stacked] .controlArrows .simple-keyboard-control.simple-keyboard .hg-row:first-child {
+  @apply mb-[4px];
 }
 
 .hg-button {
@@ -328,14 +367,18 @@ video::-webkit-media-controls {
 }
 
 /* Reduce font size for selected keys when keyboard is detached */
+.keyboard-detached {
+  max-width: 100vw;
+}
+
 .keyboard-detached .simple-keyboard-main.simple-keyboard {
-  min-width: calc(14 * 7ch);
+  min-width: min(calc(14 * 7ch), 80vw);
 }
 
 .keyboard-detached .simple-keyboard.hg-theme-default div.hg-button {
   text-wrap: auto;
   text-align: center;
-  min-width: 6ch;
+  min-width: min(6ch, 4.5vw);
 }
 .keyboard-detached .simple-keyboard.hg-theme-default .hg-button span {
   font-size: 50%;

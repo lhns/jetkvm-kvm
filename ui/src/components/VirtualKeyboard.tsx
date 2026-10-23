@@ -9,18 +9,36 @@ import DetachIconRaw from "@/assets/detach-icon.svg";
 import { cx } from "@/cva.config";
 import { useHidStore, useUiStore } from "@hooks/stores";
 import useKeyboard from "@hooks/useKeyboard";
+import useKeyboardFit from "@hooks/useKeyboardFit";
 import useKeyboardLayout from "@hooks/useKeyboardLayout";
 import { Button, LinkButton } from "@components/Button";
 import Card from "@components/Card";
 import { decodeModifiers, keys, latchingKeys, modifiers } from "@/keyboardMappings";
+import { clampPosition, KeyboardMode } from "@/utils/keyboardFit";
 import { m } from "@localizations/messages.js";
 
 export const DetachIcon = ({ className }: { className?: string }) => {
   return <img src={DetachIconRaw} alt="Detach Icon" className={className} />;
 };
 
-function KeyboardWrapper() {
+interface KeyboardWrapperProps {
+  /** Where the attached keyboard is mounted: in the page, or over the fullscreen video. */
+  mode?: "page" | "fullscreen";
+}
+
+function visibleViewport() {
+  const viewport = window.visualViewport;
+  return {
+    width: viewport?.width ?? window.innerWidth,
+    height: viewport?.height ?? window.innerHeight,
+  };
+}
+
+function KeyboardWrapper({ mode = "page" }: KeyboardWrapperProps) {
+  const anchorRef = useRef<HTMLDivElement>(null);
   const keyboardRef = useRef<HTMLDivElement>(null);
+  const fitRootRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const { isAttachedVirtualKeyboardVisible, setAttachedVirtualKeyboardVisibility } = useUiStore();
   const { keyboardLedState, keysDownState, isVirtualKeyboardEnabled, setVirtualKeyboardEnabled } =
     useHidStore();
@@ -30,6 +48,8 @@ function KeyboardWrapper() {
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [newPosition, setNewPosition] = useState({ x: 0, y: 0 });
+
+  const fitMode: KeyboardMode = isAttachedVirtualKeyboardVisible ? mode : "detached";
 
   const keyDisplayMap = useMemo(() => {
     return selectedKeyboard.keyDisplayMap;
@@ -92,18 +112,49 @@ function KeyboardWrapper() {
         const newX = clientX - position.x;
         const newY = clientY - position.y;
 
-        const rect = keyboardRef.current.getBoundingClientRect();
-        const maxX = window.innerWidth - rect.width;
-        const maxY = window.innerHeight - rect.height;
-
-        setNewPosition({
-          x: Math.min(maxX, Math.max(0, newX)),
-          y: Math.min(maxY, Math.max(0, newY)),
-        });
+        setNewPosition(
+          clampPosition(
+            { x: newX, y: newY },
+            keyboardRef.current.getBoundingClientRect(),
+            visibleViewport(),
+          ),
+        );
       }
     },
     [isDragging, position.x, position.y],
   );
+
+  // A detached keyboard must stay on screen after a rotation, a resize or a size change.
+  useEffect(() => {
+    const element = keyboardRef.current;
+    if (isAttachedVirtualKeyboardVisible || !isVirtualKeyboardEnabled || !element) return;
+
+    const keepInside = () =>
+      setNewPosition(current => {
+        const next = clampPosition(current, element.getBoundingClientRect(), visibleViewport());
+        return next.x === current.x && next.y === current.y ? current : next;
+      });
+
+    keepInside();
+    const observer = new ResizeObserver(keepInside);
+    observer.observe(element);
+    window.addEventListener("resize", keepInside);
+    window.visualViewport?.addEventListener("resize", keepInside);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", keepInside);
+      window.visualViewport?.removeEventListener("resize", keepInside);
+    };
+  }, [isAttachedVirtualKeyboardVisible, isVirtualKeyboardEnabled]);
+
+  useKeyboardFit({
+    rootRef: fitRootRef,
+    bodyRef,
+    anchorRef,
+    mode: fitMode,
+    rows: virtualKeyboard.main.default.length,
+    enabled: isVirtualKeyboardEnabled,
+  });
 
   const endDrag = useCallback(() => {
     setIsDragging(false);
@@ -177,12 +228,7 @@ function KeyboardWrapper() {
   );
 
   return (
-    <div
-      className="transition-all duration-500 ease-in-out"
-      style={{
-        marginBottom: isVirtualKeyboardEnabled ? "0px" : `-${350}px`,
-      }}
-    >
+    <div ref={anchorRef}>
       <AnimatePresence>
         {isVirtualKeyboardEnabled && (
           <motion.div
@@ -208,20 +254,27 @@ function KeyboardWrapper() {
               }}
             >
               <Card
-                className={cx("overflow-hidden", {
-                  "rounded-none": isAttachedVirtualKeyboardVisible,
-                  "keyboard-detached": !isAttachedVirtualKeyboardVisible,
-                })}
+                ref={fitRootRef}
+                className={cx(
+                  "flex max-h-(--kb-max-h) flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]",
+                  {
+                    "rounded-none": isAttachedVirtualKeyboardVisible,
+                    "keyboard-detached": !isAttachedVirtualKeyboardVisible,
+                  },
+                )}
               >
-                <div className="flex items-center justify-center border-b border-b-slate-800/30 bg-white px-2 py-4 dark:border-b-slate-300/20 dark:bg-slate-800">
+                <div className="flex min-h-[34px] shrink-0 items-center justify-center border-b border-b-slate-800/30 bg-white px-2 py-1.5 dark:border-b-slate-300/20 dark:bg-slate-800">
                   <div className="absolute left-2 flex items-center gap-x-2">
                     {isAttachedVirtualKeyboardVisible ? (
-                      <Button
-                        size="XS"
-                        theme="light"
-                        text={m.detach()}
-                        onClick={() => setAttachedVirtualKeyboardVisibility(false)}
-                      />
+                      // Detaching a keyboard that overlays the fullscreen video is no use.
+                      mode !== "fullscreen" && (
+                        <Button
+                          size="XS"
+                          theme="light"
+                          text={m.detach()}
+                          onClick={() => setAttachedVirtualKeyboardVisibility(false)}
+                        />
+                      )
                     ) : (
                       <Button
                         size="XS"
@@ -256,8 +309,8 @@ function KeyboardWrapper() {
                   </div>
                 </div>
 
-                <div>
-                  <div className="flex flex-col bg-blue-50/80 md:flex-row dark:bg-slate-700">
+                <div ref={bodyRef} className="min-h-0 overflow-y-auto">
+                  <div className="kb-body bg-blue-50/80 dark:bg-slate-700">
                     <Keyboard
                       baseClass="simple-keyboard-main"
                       layoutName={mainLayoutName}
