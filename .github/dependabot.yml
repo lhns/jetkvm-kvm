@@ -1,0 +1,24 @@
+# The UI image's base images and the actions only; app dependencies arrive through upstream merges.
+# Merged by hand: lhns-build is deployed from the image these produce.
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "docker"
+    directory: "/ui"
+    schedule:
+      interval: "weekly"
+    ignore:
+      # ui/package.json requires Node ^22.21.1.
+      - dependency-name: "node"
+        versions: [">=23"]
+    groups:
+      base-images:
+        patterns: ["*"]
