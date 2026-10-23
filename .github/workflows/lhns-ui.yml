@@ -2,7 +2,24 @@ name: UI
 
 on:
   push:
+    # The firmware monorepo: Go-only changes must not rebuild the UI.
+    paths:
+      - ui/**
+      - .github/workflows/lhns-ui.yml
   workflow_dispatch:
+
+# Runs on lhns-build queue instead of cancelling, so the image tag moves in commit order.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/lhns-build' }}
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/jetkvm-ui
+  # Compiled into the bundle; the cluster's API host.
+  VITE_CLOUD_API: https://jetkvm-api.lhns.de
 
 jobs:
   build:
@@ -11,8 +28,8 @@ jobs:
       run:
         working-directory: ui
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -20,8 +37,116 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
-      # Same mode and API URL as the cluster's image build.
       - run: npm run build:prod
+      - run: grep -rlq "$VITE_CLOUD_API" dist
+
+  image:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      PUBLISH: ${{ github.ref == 'refs/heads/lhns-build' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Anonymous pulls of the base images share the runner IP's quota and get 429s. Without
+      # both secrets the build pulls anonymously.
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha
+          flavor: latest=false
+
+      # Built and tested first; the pushed build below reuses its layers from the cache.
+      - name: Build (loaded, for the smoke test)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ui
+          platforms: linux/amd64
+          load: true
+          tags: smoke:local
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: VITE_CLOUD_API=${{ env.VITE_CLOUD_API }}
+          provenance: false
+          sbom: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test, nginx headers and fallback
+        run: |
+          set -eu
+          docker run -d --name ui -p 8080:8080 smoke:local
+          for i in $(seq 30); do curl -sf -o /dev/null localhost:8080/ && break; sleep 1; done
+          check() { # path, expected status, header regex that must match ("-" for none), header regex that must not
+            code=$(curl -s -o /dev/null -D h.txt -w '%{http_code}' "localhost:8080$1")
+            echo "$1 -> $code"; cat h.txt
+            [ "$code" = "$2" ] || { echo "expected $2"; exit 1; }
+            [ "$3" = - ] || grep -qiE "$3" h.txt || { echo "missing header $3"; exit 1; }
+            [ "$4" = - ] || ! grep -qiE "$4" h.txt || { echo "unexpected header $4"; exit 1; }
+          }
+          check / 200 '^cache-control: no-cache' '^etag:'
+          check /devices/x 200 '^cache-control: no-cache' '^etag:'
+          # Last-Modified is sent, but a conditional request must never get a 304.
+          code=$(curl -s -o /dev/null -w '%{http_code}' -H 'If-Modified-Since: Fri, 01 Jan 2100 00:00:00 GMT' localhost:8080/)
+          [ "$code" = 200 ] || { echo "conditional GET / -> $code"; exit 1; }
+          asset=$(docker exec ui sh -c 'cd /usr/share/nginx/html/assets && find . -type f -name "*.js" | head -n 1 | cut -c3-'  )
+          check "/assets/$asset" 200 '^cache-control: .*immutable' -
+          check /assets/missing.js 404 - -
+          check /favicon.ico 200 - -
+          check /site.webmanifest 200 - -
+          docker exec ui grep -rlq "$VITE_CLOUD_API" /usr/share/nginx/html
+
+      - name: Hash the image files
+        run: docker exec ui sh -c 'cd /usr/share/nginx/html && find . -type f | sort | xargs sha256sum' > loaded.sha
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        if: env.PUBLISH == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push
+        id: push
+        if: env.PUBLISH == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ui
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: VITE_CLOUD_API=${{ env.VITE_CLOUD_API }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: mode=max
+          sbom: true
+
+      - name: Verify the published image
+        if: env.PUBLISH == 'true'
         env:
-          VITE_CLOUD_API: https://jetkvm-api.lhns.de
-      - run: grep -rlq "https://jetkvm-api.lhns.de" dist
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          docker pull "$IMAGE_NAME@$DIGEST"
+          docker run --rm --entrypoint sh "$IMAGE_NAME@$DIGEST" -c 'cd /usr/share/nginx/html && find . -type f | sort | xargs sha256sum' > published.sha
+          diff loaded.sha published.sha
+          {
+            echo "### Published image"
+            echo
+            echo "\`$IMAGE_NAME:lhns-build@$DIGEST\` from commit \`$GITHUB_SHA\`"
+          } >> "$GITHUB_STEP_SUMMARY"
