@@ -7,8 +7,15 @@ import { cx } from "@/cva.config";
 import { isWindows } from "@/utils";
 import useKeyboard from "@hooks/useKeyboard";
 import useMouse from "@hooks/useMouse";
+import useVisibleViewportHeight from "@hooks/useVisibleViewportHeight";
 import { useTouchInput } from "@hooks/useTouchInput";
-import { useRTCStore, useSettingsStore, useUiStore, useVideoStore } from "@hooks/stores";
+import {
+  useHidStore,
+  useRTCStore,
+  useSettingsStore,
+  useUiStore,
+  useVideoStore,
+} from "@hooks/stores";
 import VirtualKeyboard from "@components/VirtualKeyboard";
 import FullscreenShortcuts from "@components/FullscreenShortcuts";
 import Actionbar from "@components/ActionBar";
@@ -23,6 +30,7 @@ import {
 } from "@components/VideoOverlay";
 import OcrOverlay from "@components/OcrOverlay";
 import { keys } from "@/keyboardMappings";
+import { shouldCompactBars } from "@/utils/compactBars";
 import { isLockAllowed } from "@/utils/lockPermission";
 import { remapWinKey } from "@/utils/keyRemap";
 import { recentlyTouched } from "@/utils/touchRecency";
@@ -268,6 +276,14 @@ export default function WebRTCVideo({
   }, []);
 
   const isFullscreen = isNativeFullscreen || isPseudoFullscreen;
+
+  // On a short screen the open keyboard needs the height of the status and macro bars.
+  const isVirtualKeyboardEnabled = useHidStore(state => state.isVirtualKeyboardEnabled);
+  const viewportHeight = useVisibleViewportHeight();
+  const compactBars = shouldCompactBars({
+    keyboardOpen: isVirtualKeyboardEnabled && !isFullscreen,
+    viewportHeight,
+  });
   const toggleFullscreen = useCallback(
     () => (isFullscreen ? exitFullscreen() : requestFullscreen()),
     [isFullscreen, exitFullscreen, requestFullscreen],
@@ -698,7 +714,7 @@ export default function WebRTCVideo({
         <div className="flex flex-col">
           <fieldset disabled={peerConnection?.connectionState !== "connected"} className="contents">
             <Actionbar isFullscreen={isFullscreen} toggleFullscreen={toggleFullscreen} />
-            <MacroBar />
+            {!compactBars && <MacroBar />}
           </fieldset>
         </div>
       </div>
@@ -797,7 +813,7 @@ export default function WebRTCVideo({
           </div>
         </div>
       </div>
-      {!hideStatusBar && (
+      {!hideStatusBar && !compactBars && (
         <div>
           <InfoBar />
         </div>
