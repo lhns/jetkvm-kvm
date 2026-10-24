@@ -152,6 +152,15 @@ html {
   @apply scroll-smooth;
 }
 
+/* The app picks its theme with a class, so tell the browser which one is active. */
+:root {
+  color-scheme: light;
+}
+
+:root.dark {
+  color-scheme: dark;
+}
+
 html,
 body {
   height: 100%;
