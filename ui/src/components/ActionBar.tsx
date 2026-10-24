@@ -12,22 +12,16 @@ import {
   LuTerminal,
   LuX,
 } from "react-icons/lu";
-import { FaKeyboard } from "react-icons/fa6";
 import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
 import { CommandLineIcon } from "@heroicons/react/20/solid";
 
 import { SplitButtonGroup, SplitButtonPrimary, SplitButtonCaret } from "@components/SplitButton";
 
 import { cx } from "@/cva.config";
-import {
-  useHidStore,
-  useMountMediaStore,
-  useSettingsStore,
-  useUiStore,
-  useVideoStore,
-} from "@hooks/stores";
+import { useMountMediaStore, useSettingsStore, useUiStore, useVideoStore } from "@hooks/stores";
 import { useDeviceUiNavigation } from "@hooks/useAppNavigation";
 import { Button } from "@components/Button";
+import KeyboardButton from "@components/KeyboardButton";
 import Container from "@components/Container";
 import PasteModal from "@components/popovers/PasteModal";
 import WakeOnLanModal from "@components/popovers/WakeOnLan/Index";
@@ -44,7 +38,6 @@ export default function Actionbar({
   toggleFullscreen: () => Promise<void>;
 }) {
   const { navigateTo } = useDeviceUiNavigation();
-  const { isVirtualKeyboardEnabled, setVirtualKeyboardEnabled } = useHidStore();
   const {
     setDisableVideoFocusTrap,
     terminalType,
@@ -264,13 +257,7 @@ export default function Actionbar({
             </Popover>
           </div>
           <div className="hidden lg:block">
-            <Button
-              size="XS"
-              theme="light"
-              text={m.action_bar_virtual_keyboard()}
-              LeadingIcon={FaKeyboard}
-              onClick={() => setVirtualKeyboardEnabled(!isVirtualKeyboardEnabled)}
-            />
+            <KeyboardButton />
           </div>
         </div>
 
@@ -303,13 +290,7 @@ export default function Actionbar({
           </Popover>
 
           <div className="block lg:hidden">
-            <Button
-              size="XS"
-              theme="light"
-              text={m.action_bar_virtual_keyboard()}
-              LeadingIcon={FaKeyboard}
-              onClick={() => setVirtualKeyboardEnabled(!isVirtualKeyboardEnabled)}
-            />
+            <KeyboardButton />
           </div>
           <div className="hidden md:block">
             <Button

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { LuCommand, LuKeyboard } from "react-icons/lu";
+import { LuCommand, LuKeyboard, LuTabletSmartphone } from "react-icons/lu";
 
 import { useHidStore, useMacrosStore, useSettingsStore, useVideoStore } from "@hooks/stores";
 import useKeyboard, { type MacroSteps } from "@hooks/useKeyboard";
 import { useJsonRpc } from "@hooks/useJsonRpc";
+import useKeyboardChoice from "@hooks/useKeyboardChoice";
 import { useMultiTouchGestures } from "@hooks/useMultiTouchGestures";
 import { Button } from "@components/Button";
 import Card from "@components/Card";
@@ -32,6 +33,7 @@ export default function FullscreenShortcuts() {
   const { swipeLeftAction, swipeRightAction } = useSettingsStore();
   const { containerElement, width, height, clientWidth, clientHeight } = useVideoStore();
   const { keysDownState, setVirtualKeyboardEnabled } = useHidStore();
+  const { touch, openPc, openSystem } = useKeyboardChoice();
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Leaving fullscreen unmounts this; a held sticky modifier would otherwise stay down on the remote.
@@ -78,6 +80,8 @@ export default function FullscreenShortcuts() {
           data-fs-overlay
           aria-label={m.fullscreen_menu_button()}
           title={m.fullscreen_menu_button()}
+          // Keeps the System keyboard's field focused (Android focuses tapped buttons).
+          onMouseDown={e => e.preventDefault()}
           onClick={() => setMenuOpen(true)}
           className="absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full bg-white/10 p-2 text-white/70 hover:bg-white/25"
           style={{ left: barSpot.x, top: barSpot.y }}
@@ -90,6 +94,7 @@ export default function FullscreenShortcuts() {
         <div
           data-fs-overlay
           className="absolute inset-0 z-30 flex items-center justify-center bg-black/40 p-4"
+          onMouseDown={e => e.preventDefault()}
           onPointerDown={e => {
             if (e.target === e.currentTarget) setMenuOpen(false);
           }}
@@ -142,17 +147,44 @@ export default function FullscreenShortcuts() {
               </div>
 
               <div className="flex items-center justify-between gap-2">
-                <Button
-                  size="SM"
-                  theme="light"
-                  LeadingIcon={LuKeyboard}
-                  text={m.fullscreen_menu_keyboard()}
-                  data-testid="fs-keyboard"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setVirtualKeyboardEnabled(true);
-                  }}
-                />
+                {touch ? (
+                  <div className="flex gap-2">
+                    <Button
+                      size="SM"
+                      theme="light"
+                      LeadingIcon={LuKeyboard}
+                      text={m.keyboard_pc()}
+                      data-testid="fs-keyboard"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        openPc();
+                      }}
+                    />
+                    <Button
+                      size="SM"
+                      theme="light"
+                      LeadingIcon={LuTabletSmartphone}
+                      text={m.keyboard_system()}
+                      data-testid="fs-keyboard-system"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        openSystem();
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <Button
+                    size="SM"
+                    theme="light"
+                    LeadingIcon={LuKeyboard}
+                    text={m.fullscreen_menu_keyboard()}
+                    data-testid="fs-keyboard"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setVirtualKeyboardEnabled(true);
+                    }}
+                  />
+                )}
                 <Button
                   size="SM"
                   theme="blank"
