@@ -152,6 +152,15 @@ html {
   @apply scroll-smooth;
 }
 
+/* The app picks its theme with a class, so tell the browser which one is active. */
+:root {
+  color-scheme: light;
+}
+
+:root.dark {
+  color-scheme: dark;
+}
+
 html,
 body {
   height: 100%;
@@ -235,6 +244,12 @@ video::-webkit-media-controls {
 
 .kb-card.keyboard-detached {
   --kb-max-h: 60dvh;
+  /* Narrow keys: smaller labels, and a lower floor than the attached keyboard's 10px. */
+  --kb-font-w: 1.25cqw;
+}
+
+.kb-card.keyboard-detached .simple-keyboard.hg-theme-default .hg-button {
+  font-size: clamp(8px, min(var(--kb-key-h, 40px) * 0.42, var(--kb-font-w)), 16px);
 }
 
 .kb-body {
@@ -381,9 +396,27 @@ video::-webkit-media-controls {
   flex-grow: 4;
 }
 
+/* Blank layout tokens are spacers like the gaps on a physical keyboard: same width, nothing drawn. */
+.hg-theme-default .hg-button[data-skbtn=""] {
+  @apply pointer-events-none invisible;
+}
+
+/* The main block's gaps (de_DE F-row groups) are a quarter key wide; the arrow block's keep a key. */
+.simple-keyboard-main .hg-button[data-skbtn=""] {
+  flex: 0.25 1 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* Tap feedback. Must come before .down-key: both are !important, so a held key stays blue. */
+.hg-theme-default .hg-button.hg-activeButton {
+  @apply bg-slate-200! dark:bg-slate-600!;
+}
+
+/* A key the remote holds down. Beats the dark .hg-button background above. */
 .hg-theme-default .hg-row .down-key {
-  background: rgb(28, 28, 28);
-  @apply font-bold! text-white!;
+  @apply bg-blue-700! font-semibold! text-white! dark:bg-blue-600!;
 }
 
 .hg-theme-default .hg-row .hg-button-container,
@@ -395,8 +428,6 @@ video::-webkit-media-controls {
   max-width: 100vw;
 }
 
-/* Reduce font size for selected keys when keyboard is detached */
-
 .keyboard-detached .simple-keyboard-main.simple-keyboard {
   min-width: min(calc(14 * 7ch), 80vw);
 }
@@ -405,9 +436,6 @@ video::-webkit-media-controls {
   text-wrap: auto;
   text-align: center;
   min-width: min(6ch, 4.5vw);
-}
-.keyboard-detached .simple-keyboard.hg-theme-default .hg-button span {
-  font-size: 50%;
 }
 
 /* Hide the scrollbar by setting the scrollbar color to the background color */
