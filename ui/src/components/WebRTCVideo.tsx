@@ -716,7 +716,8 @@ export default function WebRTCVideo({
           <div className="flex h-full flex-col">
             <div className="relative grow overflow-hidden">
               <div className="flex h-full flex-col">
-                <div className="grid grow grid-rows-(--grid-bodyFooter) overflow-hidden">
+                {/* The keyboard sizes itself to this box (.kb-card in index.css). */}
+                <div className="[container-type:size] grid grow grid-rows-(--grid-bodyFooter) overflow-hidden">
                   {/* In relative mouse mode and under https, we enable the pointer lock, and to do so we need a bar to show the user to click on the video to enable mouse control */}
                   <PointerLockBar show={showPointerLockBar} />
                   <div className="relative mx-4 my-2 flex items-center justify-center overflow-hidden">
