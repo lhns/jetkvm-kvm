@@ -16,26 +16,14 @@ const FALLBACKS: Record<string, string> = {
   "–": "-",
   "—": "-",
   "…": "...",
-  " ": " ",
+  "\u00a0": " ",
 };
-
-const MODIFIER_NAMES = [
-  "ControlLeft",
-  "ShiftLeft",
-  "AltLeft",
-  "MetaLeft",
-  "ControlRight",
-  "ShiftRight",
-  "AltRight",
-  "MetaRight",
-];
 
 /** Key combos that type `c`; empty when the layout can't. More than one for folded characters. */
 export function charKeys(c: string, layout: KeyboardLayout): KeyCombo[] {
   const char = c.normalize("NFC");
   const combo = layout.chars[char];
   if (combo?.key) return [combo];
-  if (char === "\n") return [{ key: "Enter" }];
   if (char === "\t") return [{ key: "Tab" }];
   const folded = FALLBACKS[char];
   if (!folded) return [];
@@ -86,15 +74,14 @@ export function diffInput(prev: string, next: string): { removed: string; insert
 
 /**
  * Backspaces for the removed text, then the inserted text. `heldModifier` (sticky modifiers, as
- * a mask) rides on the first step; names are deduplicated through the mask because
- * `executeMacro` adds the masks, so AltRight + AltGr would otherwise become AltLeft.
+ * a mask) rides on the first step. Names are deduplicated through the mask, without the AltGr
+ * alias, because `executeMacro` adds the masks: Shift twice would become AltLeft.
  */
 export function inputToMacroSteps(
   prev: string,
   next: string,
   layout: KeyboardLayout,
   heldModifier: number,
-  delay = DEFAULT_KEY_DELAY,
 ): MacroStep[] {
   const { removed, inserted } = diffInput(prev, next);
   // Count what the remote actually received: nothing for skipped characters, 3 for "…".
@@ -103,16 +90,16 @@ export function inputToMacroSteps(
     ...Array.from({ length: backspaces }, () => ({
       keys: ["Backspace"],
       modifiers: null,
-      delay,
+      delay: DEFAULT_KEY_DELAY,
     })),
-    ...textToMacroSteps(inserted, layout, delay),
+    ...textToMacroSteps(inserted, layout),
   ];
 
   if (heldModifier && steps.length > 0) {
     const mask = (steps[0].modifiers ?? []).reduce((m, name) => m | modifiers[name], heldModifier);
     steps[0] = {
       ...steps[0],
-      modifiers: MODIFIER_NAMES.filter(name => mask & modifiers[name]),
+      modifiers: Object.keys(modifiers).filter(name => name !== "AltGr" && mask & modifiers[name]),
     };
   }
   return steps;

@@ -20,7 +20,7 @@ const step = (key: string, mods: string[] | null = null): MacroStep => ({
 const bs = step("Backspace");
 
 // The loop PasteModal had before the extraction.
-function legacyPaste(text: string, kb: KeyboardLayout, delay = 20): MacroStep[] {
+function legacyPaste(text: string, kb: KeyboardLayout, delay: number): MacroStep[] {
   const out: MacroStep[] = [];
   for (const char of text) {
     const keyprops = kb.chars[char.normalize("NFC")];
@@ -51,129 +51,73 @@ function legacyPaste(text: string, kb: KeyboardLayout, delay = 20): MacroStep[] 
 }
 
 describe("textToMacroSteps", () => {
-  it("types plain, shifted and AltRight characters", () => {
-    expect(textToMacroSteps("aB", en)).toEqual([step("KeyA"), step("KeyB", ["ShiftLeft"])]);
-    expect(textToMacroSteps("@", de)).toEqual([step("KeyQ", ["AltRight"])]);
-  });
-
-  it("sends a dead key followed by Space", () => {
-    expect(textToMacroSteps("^", de)).toEqual([step("Backquote"), step("Space")]);
-  });
-
-  it("sends the accent first for an accented character", () => {
-    expect(textToMacroSteps("ä", de)).toEqual(legacyPaste("ä", de));
-    expect(textToMacroSteps("â", fr)).toEqual([step("BracketLeft"), step("KeyQ")]);
-  });
-
-  it("matches the pre-extraction paste loop", () => {
+  // Shifted, AltRight (@ on de), dead key (^ on de), accent first (â on fr), untypeable emoji.
+  it.each([en, de, fr])("matches the pre-extraction paste loop on $isoCode", kb => {
     const text = "Hello, World! 123 @^ äöüß âêîô 😀 é\nz";
-    for (const kb of [en, de, fr])
-      expect(textToMacroSteps(text, kb)).toEqual(legacyPaste(text, kb));
-  });
-
-  it("uses the delay it is given", () => {
-    expect(textToMacroSteps("a", en, 50)[0].delay).toBe(50);
+    expect(textToMacroSteps(text, kb, 50)).toEqual(legacyPaste(text, kb, 50));
   });
 });
 
 describe("charKeys fallbacks", () => {
-  it("types Tab and Enter even if the layout has no entry", () => {
-    expect(charKeys("\t", en)).toEqual([{ key: "Tab" }]);
-    const noNewline = { ...en, chars: { ...en.chars } };
-    delete noNewline.chars["\n"];
-    expect(charKeys("\n", noNewline)).toEqual([{ key: "Enter" }]);
-  });
+  it("types Tab, which no layout has", () => expect(charKeys("\t", en)).toEqual([{ key: "Tab" }]));
 
-  it("uses the layout's own newline when it has one", () => {
-    expect(charKeys("\n", de)).toEqual([de.chars["\n"]]);
-  });
+  it.each([
+    ["“x”", '"x"'],
+    ["’", "'"],
+    ["–—", "--"],
+    ["…", "..."],
+    ["a b", "a b"],
+  ])("folds %s", (text, folded) =>
+    expect(textToMacroSteps(text, en)).toEqual(textToMacroSteps(folded, en)),
+  );
 
-  it("folds smart punctuation and ellipsis", () => {
-    expect(textToMacroSteps("“x”", en)).toEqual(textToMacroSteps('"x"', en));
-    expect(textToMacroSteps("’", en)).toEqual(textToMacroSteps("'", en));
-    expect(textToMacroSteps("–—", en)).toEqual(textToMacroSteps("--", en));
-    expect(textToMacroSteps("…", en)).toEqual(textToMacroSteps("...", en));
-    expect(textToMacroSteps("a b", en)).toEqual(textToMacroSteps("a b", en));
-  });
-
-  it("keeps a character the layout has", () => {
-    expect(hu.chars["„"]).toBeDefined();
+  it("folds only when the layout lacks the character", () => {
     expect(charKeys("„", hu)).toEqual([hu.chars["„"]]);
     expect(charKeys("„", de)).toEqual(charKeys('"', de));
   });
 
-  it("returns nothing for characters it can't type", () => {
-    expect(charKeys("😀", en)).toEqual([]);
-    expect(charKeys("日", en)).toEqual([]);
-  });
+  it("returns nothing for characters it can't type", () => expect(charKeys("😀", en)).toEqual([]));
 });
 
 describe("diffInput", () => {
-  it("appends", () => expect(diffInput(" ab", " abc")).toEqual({ removed: "", inserted: "c" }));
-  it("deletes", () => expect(diffInput(" abc", " ab")).toEqual({ removed: "c", inserted: "" }));
-  it("replaces a word", () =>
-    expect(diffInput(" teh ", " the ")).toEqual({
-      removed: "eh ",
-      inserted: "he ",
-    }));
-  it("is empty when unchanged", () =>
-    expect(diffInput(" ab", " ab")).toEqual({ removed: "", inserted: "" }));
-  it("normalizes to NFC", () =>
-    expect(diffInput(" é", " é")).toEqual({ removed: "", inserted: "" }));
-  it("keeps surrogate pairs whole", () => {
-    expect(diffInput(" 😀", " 😁")).toEqual({ removed: "😀", inserted: "😁" });
-    expect(diffInput(" a", " a😀")).toEqual({ removed: "", inserted: "😀" });
-  });
+  it.each([
+    ["appends", " ab", " abc", "", "c"],
+    ["deletes", " abc", " ab", "c", ""],
+    ["replaces a word", " teh ", " the ", "eh ", "he "],
+    ["is empty when unchanged", " ab", " ab", "", ""],
+    ["normalizes to NFC", " é", " é", "", ""],
+    ["keeps surrogate pairs whole", " 😀", " 😁", "😀", "😁"],
+  ])("%s", (_, prev, next, removed, inserted) =>
+    expect(diffInput(prev, next)).toEqual({ removed, inserted }),
+  );
 });
 
 describe("inputToMacroSteps", () => {
-  const run = (prev: string, next: string, held = 0, kb = en) =>
-    inputToMacroSteps(prev, next, kb, held);
+  it.each([
+    ["inserts", " ", " t", [step("KeyT")]],
+    ["turns the sentinel's deletion into one Backspace", " ", "", [bs]],
+    ["replays autocorrect", " teh", " the ", [bs, bs, step("KeyH"), step("KeyE"), step("Space")]],
+    ["types a swiped word", " the ", " the hi", [step("KeyH"), step("KeyI")]],
+    ["swaps a suggestion", " the hello", " the hell", [bs]],
+    ["counts no Backspace for a skipped character", " a😀", " a", []],
+    ["counts a folded character by what it typed", " …", " ", [bs, bs, bs]],
+    ["sends Enter for a line break", " a", " a\n", [step("Enter")]],
+  ])("%s", (_, prev, next, steps) => expect(inputToMacroSteps(prev, next, en, 0)).toEqual(steps));
 
-  it("inserts", () => expect(run(" ", " t")).toEqual([step("KeyT")]));
+  it("applies a held modifier to the first step only", () =>
+    expect(inputToMacroSteps(" ", " cd", en, modifiers.ControlLeft)).toEqual([
+      step("KeyC", ["ControlLeft"]),
+      step("KeyD"),
+    ]));
 
-  it("turns the sentinel's deletion into one Backspace", () => expect(run(" ", "")).toEqual([bs]));
+  it("sends nothing when unchanged, even with a held modifier", () =>
+    expect(inputToMacroSteps(" a", " a", en, modifiers.ControlLeft)).toEqual([]));
 
-  it("replays autocorrect as backspaces plus the corrected tail", () => {
-    expect(run(" teh", " the ")).toEqual([bs, bs, step("KeyH"), step("KeyE"), step("Space")]);
-  });
-
-  it("types a swiped word", () =>
-    expect(run(" the ", " the hello")).toEqual(textToMacroSteps("hello", en)));
-
-  it("swaps a suggestion", () => expect(run(" the hello", " the hell")).toEqual([bs]));
-
-  it("counts no Backspace for skipped characters", () => {
-    expect(run(" a😀", " a")).toEqual([]);
-  });
-
-  it("counts a folded character by what it typed", () =>
-    expect(run(" …", " ")).toEqual([bs, bs, bs]));
-
-  it("sends Enter for a line break", () => expect(run(" a", " a\n")).toEqual([step("Enter")]));
-
-  it("sends nothing when unchanged", () =>
-    expect(run(" a", " a", modifiers.ControlLeft)).toEqual([]));
-
-  it("applies a held modifier to the first step only", () => {
-    const steps = run(" ", " cd", modifiers.ControlLeft);
-    expect(steps).toEqual([step("KeyC", ["ControlLeft"]), step("KeyD")]);
-  });
-
-  it("does not turn Shift + a shifted char into AltLeft", () => {
-    const [first] = run(" ", " A", modifiers.ShiftLeft);
-    expect(first.modifiers).toEqual(["ShiftLeft"]);
-    const mask = first.modifiers!.reduce((m, n) => m + modifiers[n], 0);
-    expect(mask).toBe(modifiers.ShiftLeft);
-  });
-
-  it("does not duplicate AltRight for an AltGr character", () => {
-    const [first] = run(" ", " @", modifiers.AltRight, de);
-    expect(first.modifiers).toEqual(["AltRight"]);
-  });
-
-  it("combines held and own modifiers", () => {
-    const [first] = run(" ", " A", modifiers.ControlLeft);
-    expect(first.modifiers).toEqual(["ControlLeft", "ShiftLeft"]);
-  });
+  it.each([
+    ["does not double Shift for a shifted char", "A", en, "ShiftLeft", ["ShiftLeft"]],
+    ["does not double AltRight for an AltGr char", "@", de, "AltRight", ["AltRight"]],
+    ["combines held and own modifiers", "A", en, "ControlLeft", ["ControlLeft", "ShiftLeft"]],
+  ])("%s", (_, char, kb, held, expected) =>
+    expect(inputToMacroSteps(" ", ` ${char}`, kb, modifiers[held])[0].modifiers).toEqual(expected),
+  );
 });
