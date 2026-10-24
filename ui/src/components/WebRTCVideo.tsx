@@ -17,6 +17,7 @@ import {
 } from "@hooks/stores";
 import VirtualKeyboard from "@components/VirtualKeyboard";
 import FullscreenShortcuts from "@components/FullscreenShortcuts";
+import SystemKeyboardInput from "@components/SystemKeyboardInput";
 import Actionbar from "@components/ActionBar";
 import MacroBar from "@components/MacroBar";
 import InfoBar from "@components/InfoBar";
@@ -758,6 +759,7 @@ export default function WebRTCVideo({
                         </button>
                       )}
                       {isFullscreen && <FullscreenShortcuts />}
+                      {navigator.maxTouchPoints > 0 && <SystemKeyboardInput />}
                       <video
                         ref={videoElm}
                         autoPlay

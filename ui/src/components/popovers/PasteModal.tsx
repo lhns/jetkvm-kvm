@@ -7,9 +7,10 @@ import { cx } from "@/cva.config";
 import { m } from "@localizations/messages.js";
 import { useHidStore, useSettingsStore, useUiStore } from "@hooks/stores";
 import { JsonRpcResponse, useJsonRpc } from "@hooks/useJsonRpc";
-import useKeyboard, { type MacroStep } from "@hooks/useKeyboard";
+import useKeyboard from "@hooks/useKeyboard";
 import useKeyboardLayout from "@hooks/useKeyboardLayout";
 import notifications from "@/notifications";
+import { charKeys, DEFAULT_KEY_DELAY, textToMacroSteps } from "@/utils/textToKeys";
 import { Button } from "@components/Button";
 import { GridCard } from "@components/Card";
 import { InputFieldWithLabel } from "@components/InputField";
@@ -18,7 +19,6 @@ import { TextAreaWithLabel } from "@components/TextArea";
 
 // uint32 max value / 4
 const pasteMaxLength = 1073741824;
-const defaultDelay = 20;
 
 export default function PasteModal() {
   const TextAreaRef = useRef<HTMLTextAreaElement>(null);
@@ -31,10 +31,10 @@ export default function PasteModal() {
   const { executeMacro, cancelExecuteMacro } = useKeyboard();
 
   const [invalidChars, setInvalidChars] = useState<string[]>([]);
-  const [delayValue, setDelayValue] = useState(defaultDelay);
+  const [delayValue, setDelayValue] = useState(DEFAULT_KEY_DELAY);
   const delay = useMemo(() => {
     if (delayValue < 0 || delayValue > 65534) {
-      return defaultDelay;
+      return DEFAULT_KEY_DELAY;
     }
     return delayValue;
   }, [delayValue]);
@@ -65,7 +65,7 @@ export default function PasteModal() {
         ...new Set(
           [...(new Intl.Segmenter().segment(value) ?? [])]
             .map(x => x.segment.normalize("NFC"))
-            .filter(char => !selectedKeyboard?.chars[char]),
+            .filter(char => charKeys(char, selectedKeyboard).length === 0),
         ),
       ];
       setInvalidChars(chars);
@@ -79,44 +79,7 @@ export default function PasteModal() {
     const text = textValue;
 
     try {
-      const macroSteps: MacroStep[] = [];
-
-      for (const char of text) {
-        const normalizedChar = char.normalize("NFC");
-        const keyprops = selectedKeyboard.chars[normalizedChar];
-        if (!keyprops) continue;
-
-        const { key, shift, altRight, deadKey, accentKey } = keyprops;
-        if (!key) continue;
-
-        // if this is an accented character, we need to send that accent FIRST
-        if (accentKey) {
-          const accentModifiers: string[] = [];
-          if (accentKey.shift) accentModifiers.push("ShiftLeft");
-          if (accentKey.altRight) accentModifiers.push("AltRight");
-
-          macroSteps.push({
-            keys: [String(accentKey.key)],
-            modifiers: accentModifiers.length > 0 ? accentModifiers : null,
-            delay,
-          });
-        }
-
-        // now send the actual key
-        const modifiers: string[] = [];
-        if (shift) modifiers.push("ShiftLeft");
-        if (altRight) modifiers.push("AltRight");
-
-        macroSteps.push({
-          keys: [String(key)],
-          modifiers: modifiers.length > 0 ? modifiers : null,
-          delay,
-        });
-
-        // if what was requested was a dead key, we need to send an unmodified space to emit
-        // just the accent character
-        if (deadKey) macroSteps.push({ keys: ["Space"], modifiers: null, delay });
-      }
+      const macroSteps = textToMacroSteps(text, selectedKeyboard, delay);
 
       if (macroSteps.length > 0) {
         await executeMacro(macroSteps);
