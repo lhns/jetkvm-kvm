@@ -13,7 +13,9 @@ import useKeyboardLayout from "@hooks/useKeyboardLayout";
 import { Button, LinkButton } from "@components/Button";
 import Card from "@components/Card";
 import { clampToViewport } from "@/utils/clampToViewport";
+import { isGapKey } from "@/utils/gapKey";
 import { decodeModifiers, keys, latchingKeys, modifiers } from "@/keyboardMappings";
+import { anyKeyHeld, heldKeyNames } from "@/utils/keyboardState";
 import { m } from "@localizations/messages.js";
 
 export const DetachIcon = ({ className }: { className?: string }) => {
@@ -56,7 +58,7 @@ function KeyboardWrapper({ mode = "page" }: KeyboardWrapperProps) {
   const { isAttachedVirtualKeyboardVisible, setAttachedVirtualKeyboardVisibility } = useUiStore();
   const { keyboardLedState, keysDownState, isVirtualKeyboardEnabled, setVirtualKeyboardEnabled } =
     useHidStore();
-  const { handleKeyPress } = useKeyboard();
+  const { handleKeyPress, resetKeyboardState } = useKeyboard();
   const { selectedKeyboard } = useKeyboardLayout();
 
   const [isDragging, setIsDragging] = useState(false);
@@ -86,19 +88,8 @@ function KeyboardWrapper({ mode = "page" }: KeyboardWrapperProps) {
     return effectiveShift ? "shift" : "default";
   }, [isCapsLockActive, isShiftActive]);
 
-  const keyNamesForDownKeys = useMemo(() => {
-    const activeModifierMask = keysDownState.modifier || 0;
-    const modifierNames = Object.entries(modifiers)
-      .filter(([_, mask]) => (activeModifierMask & mask) !== 0)
-      .map(([name, _]) => name);
-
-    const keysDown = keysDownState.keys || [];
-    const keyNames = Object.entries(keys)
-      .filter(([_, value]) => keysDown.includes(value))
-      .map(([name, _]) => name);
-
-    return [...modifierNames, ...keyNames, " "]; // we have to have at least one space to avoid keyboard whining
-  }, [keysDownState]);
+  const keyNamesForDownKeys = useMemo(() => heldKeyNames(keysDownState), [keysDownState]);
+  const anyHeld = anyKeyHeld(keysDownState);
 
   const startDrag = useCallback((e: MouseEvent | TouchEvent) => {
     if (!keyboardRef.current) return;
@@ -196,6 +187,8 @@ function KeyboardWrapper({ mode = "page" }: KeyboardWrapperProps) {
     async (key: string, e: MouseEvent | undefined) => {
       e?.preventDefault();
       e?.stopPropagation();
+
+      if (isGapKey(key)) return;
 
       // if they press any of the latching keys, we send a keypress down event and the release it automatically (on timer)
       if (latchingKeys.includes(key)) {
@@ -296,6 +289,14 @@ function KeyboardWrapper({ mode = "page" }: KeyboardWrapperProps) {
                       <div className="h-[20px] w-px bg-slate-800/20 dark:bg-slate-200/20" />
                     </div>
 
+                    {anyHeld && (
+                      <Button
+                        size="XS"
+                        theme="primary"
+                        text={m.virtual_keyboard_release_keys()}
+                        onClick={() => void resetKeyboardState()}
+                      />
+                    )}
                     <Button
                       size="XS"
                       theme="light"
@@ -314,10 +315,11 @@ function KeyboardWrapper({ mode = "page" }: KeyboardWrapperProps) {
                       onKeyPress={onKeyDown}
                       onKeyReleased={onKeyUp}
                       buttonTheme={[
-                        {
-                          class: "down-key",
-                          buttons: keyNamesForDownKeys.join(" "),
-                        },
+                        // The library warns about an empty list, and a blank name would match the
+                        // gap keys of layouts like de_DE, so the entry is left out instead.
+                        ...(keyNamesForDownKeys.length > 0
+                          ? [{ class: "down-key", buttons: keyNamesForDownKeys.join(" ") }]
+                          : []),
                       ]}
                       display={keyDisplayMap}
                       layout={virtualKeyboard.main}
