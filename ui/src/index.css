@@ -378,7 +378,7 @@ video::-webkit-media-controls {
 
 /* Grows with the keyboard instead of a fixed width that squeezes the other bottom-row keys. */
 .hg-button.hg-standardBtn[data-skbtn="Space"] {
-  flex-grow: 5;
+  flex-grow: 4;
 }
 
 .hg-theme-default .hg-row .down-key {
