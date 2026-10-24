@@ -9,16 +9,26 @@ import DetachIconRaw from "@/assets/detach-icon.svg";
 import { cx } from "@/cva.config";
 import { useHidStore, useUiStore } from "@hooks/stores";
 import useKeyboard from "@hooks/useKeyboard";
-import useKeyboardFit from "@hooks/useKeyboardFit";
 import useKeyboardLayout from "@hooks/useKeyboardLayout";
 import { Button, LinkButton } from "@components/Button";
 import Card from "@components/Card";
 import { decodeModifiers, keys, latchingKeys, modifiers } from "@/keyboardMappings";
-import { clampPosition, KeyboardMode } from "@/utils/keyboardFit";
 import { m } from "@localizations/messages.js";
 
 export const DetachIcon = ({ className }: { className?: string }) => {
   return <img src={DetachIconRaw} alt="Detach Icon" className={className} />;
+};
+
+// Keycap symbols fit narrow keys in every layout; macro labels keep the layout's words.
+const keycapSymbols = {
+  Tab: "⇥",
+  CapsLock: "⇪",
+  ShiftLeft: "⇧",
+  ShiftRight: "⇧",
+  Backspace: "⌫",
+  "(Backspace)": "⌫",
+  Delete: "⌦",
+  Enter: "⏎",
 };
 
 interface KeyboardWrapperProps {
@@ -26,19 +36,19 @@ interface KeyboardWrapperProps {
   mode?: "page" | "fullscreen";
 }
 
-function visibleViewport() {
+/** Keeps the detached keyboard inside the visible viewport; one larger than it sticks to the origin. */
+function clampToViewport(position: { x: number; y: number }, element: HTMLElement) {
+  const { width, height } = element.getBoundingClientRect();
   const viewport = window.visualViewport;
+  const clamp = (value: number, room: number) => Math.max(0, Math.min(value, room));
   return {
-    width: viewport?.width ?? window.innerWidth,
-    height: viewport?.height ?? window.innerHeight,
+    x: clamp(position.x, (viewport?.width ?? window.innerWidth) - width),
+    y: clamp(position.y, (viewport?.height ?? window.innerHeight) - height),
   };
 }
 
 function KeyboardWrapper({ mode = "page" }: KeyboardWrapperProps) {
-  const anchorRef = useRef<HTMLDivElement>(null);
   const keyboardRef = useRef<HTMLDivElement>(null);
-  const fitRootRef = useRef<HTMLDivElement>(null);
-  const bodyRef = useRef<HTMLDivElement>(null);
   const { isAttachedVirtualKeyboardVisible, setAttachedVirtualKeyboardVisibility } = useUiStore();
   const { keyboardLedState, keysDownState, isVirtualKeyboardEnabled, setVirtualKeyboardEnabled } =
     useHidStore();
@@ -49,11 +59,10 @@ function KeyboardWrapper({ mode = "page" }: KeyboardWrapperProps) {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [newPosition, setNewPosition] = useState({ x: 0, y: 0 });
 
-  const fitMode: KeyboardMode = isAttachedVirtualKeyboardVisible ? mode : "detached";
-
-  const keyDisplayMap = useMemo(() => {
-    return selectedKeyboard.keyDisplayMap;
-  }, [selectedKeyboard]);
+  const keyDisplayMap = useMemo(
+    () => ({ ...selectedKeyboard.keyDisplayMap, ...keycapSymbols }),
+    [selectedKeyboard],
+  );
 
   const virtualKeyboard = useMemo(() => {
     return selectedKeyboard.virtualKeyboard;
@@ -112,49 +121,26 @@ function KeyboardWrapper({ mode = "page" }: KeyboardWrapperProps) {
         const newX = clientX - position.x;
         const newY = clientY - position.y;
 
-        setNewPosition(
-          clampPosition(
-            { x: newX, y: newY },
-            keyboardRef.current.getBoundingClientRect(),
-            visibleViewport(),
-          ),
-        );
+        setNewPosition(clampToViewport({ x: newX, y: newY }, keyboardRef.current));
       }
     },
     [isDragging, position.x, position.y],
   );
 
-  // A detached keyboard must stay on screen after a rotation, a resize or a size change.
+  // Keep a detached keyboard on screen after a rotation or resize.
   useEffect(() => {
     const element = keyboardRef.current;
     if (isAttachedVirtualKeyboardVisible || !isVirtualKeyboardEnabled || !element) return;
 
-    const keepInside = () =>
-      setNewPosition(current => {
-        const next = clampPosition(current, element.getBoundingClientRect(), visibleViewport());
-        return next.x === current.x && next.y === current.y ? current : next;
-      });
-
+    const keepInside = () => setNewPosition(current => clampToViewport(current, element));
     keepInside();
-    const observer = new ResizeObserver(keepInside);
-    observer.observe(element);
     window.addEventListener("resize", keepInside);
     window.visualViewport?.addEventListener("resize", keepInside);
     return () => {
-      observer.disconnect();
       window.removeEventListener("resize", keepInside);
       window.visualViewport?.removeEventListener("resize", keepInside);
     };
   }, [isAttachedVirtualKeyboardVisible, isVirtualKeyboardEnabled]);
-
-  useKeyboardFit({
-    rootRef: fitRootRef,
-    bodyRef,
-    anchorRef,
-    mode: fitMode,
-    rows: virtualKeyboard.main.default.length,
-    enabled: isVirtualKeyboardEnabled,
-  });
 
   const endDrag = useCallback(() => {
     setIsDragging(false);
@@ -228,7 +214,7 @@ function KeyboardWrapper({ mode = "page" }: KeyboardWrapperProps) {
   );
 
   return (
-    <div ref={anchorRef}>
+    <div>
       <AnimatePresence>
         {isVirtualKeyboardEnabled && (
           <motion.div
@@ -254,12 +240,12 @@ function KeyboardWrapper({ mode = "page" }: KeyboardWrapperProps) {
               }}
             >
               <Card
-                ref={fitRootRef}
                 className={cx(
-                  "flex max-h-(--kb-max-h) flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]",
+                  "kb-card flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]",
                   {
                     "rounded-none": isAttachedVirtualKeyboardVisible,
                     "keyboard-detached": !isAttachedVirtualKeyboardVisible,
+                    "kb-fullscreen": mode === "fullscreen",
                   },
                 )}
               >
@@ -309,7 +295,7 @@ function KeyboardWrapper({ mode = "page" }: KeyboardWrapperProps) {
                   </div>
                 </div>
 
-                <div ref={bodyRef} className="min-h-0 overflow-y-auto">
+                <div className="min-h-0 overflow-y-auto">
                   <div className="kb-body bg-blue-50/80 dark:bg-slate-700">
                     <Keyboard
                       baseClass="simple-keyboard-main"
