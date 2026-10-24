@@ -12,6 +12,7 @@ import useKeyboard from "@hooks/useKeyboard";
 import useKeyboardLayout from "@hooks/useKeyboardLayout";
 import { Button, LinkButton } from "@components/Button";
 import Card from "@components/Card";
+import { clampToViewport } from "@/utils/clampToViewport";
 import { decodeModifiers, keys, latchingKeys, modifiers } from "@/keyboardMappings";
 import { m } from "@localizations/messages.js";
 
@@ -36,15 +37,18 @@ interface KeyboardWrapperProps {
   mode?: "page" | "fullscreen";
 }
 
-/** Keeps the detached keyboard inside the visible viewport; one larger than it sticks to the origin. */
-function clampToViewport(position: { x: number; y: number }, element: HTMLElement) {
-  const { width, height } = element.getBoundingClientRect();
-  const viewport = window.visualViewport;
-  const clamp = (value: number, room: number) => Math.max(0, Math.min(value, room));
+/** The area a fixed element can occupy: the smaller of the layout and the (zoomed) visual viewport. */
+function visibleViewport() {
+  const visual = window.visualViewport;
   return {
-    x: clamp(position.x, (viewport?.width ?? window.innerWidth) - width),
-    y: clamp(position.y, (viewport?.height ?? window.innerHeight) - height),
+    width: Math.min(window.innerWidth, visual?.width ?? Infinity),
+    height: Math.min(window.innerHeight, visual?.height ?? Infinity),
   };
+}
+
+function clampToScreen(position: { x: number; y: number }, element: HTMLElement) {
+  const { width, height } = element.getBoundingClientRect();
+  return clampToViewport(position, { width, height }, visibleViewport());
 }
 
 function KeyboardWrapper({ mode = "page" }: KeyboardWrapperProps) {
@@ -121,23 +125,30 @@ function KeyboardWrapper({ mode = "page" }: KeyboardWrapperProps) {
         const newX = clientX - position.x;
         const newY = clientY - position.y;
 
-        setNewPosition(clampToViewport({ x: newX, y: newY }, keyboardRef.current));
+        setNewPosition(clampToScreen({ x: newX, y: newY }, keyboardRef.current));
       }
     },
     [isDragging, position.x, position.y],
   );
 
-  // Keep a detached keyboard on screen after a rotation or resize.
+  // Keep a detached keyboard on screen when the viewport or the keyboard itself changes size.
   useEffect(() => {
     const element = keyboardRef.current;
     if (isAttachedVirtualKeyboardVisible || !isVirtualKeyboardEnabled || !element) return;
 
-    const keepInside = () => setNewPosition(current => clampToViewport(current, element));
+    const keepInside = () => setNewPosition(current => clampToScreen(current, element));
     keepInside();
+    const observer = new ResizeObserver(keepInside);
+    observer.observe(element);
     window.addEventListener("resize", keepInside);
+    window.addEventListener("orientationchange", keepInside);
+    document.addEventListener("fullscreenchange", keepInside);
     window.visualViewport?.addEventListener("resize", keepInside);
     return () => {
+      observer.disconnect();
       window.removeEventListener("resize", keepInside);
+      window.removeEventListener("orientationchange", keepInside);
+      document.removeEventListener("fullscreenchange", keepInside);
       window.visualViewport?.removeEventListener("resize", keepInside);
     };
   }, [isAttachedVirtualKeyboardVisible, isVirtualKeyboardEnabled]);
