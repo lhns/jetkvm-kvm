@@ -433,7 +433,7 @@
     "keyboard_show_pressed_keys_title": "Show Pressed Keys",
     "keyboard_title": "Keyboard",
     "keyboard_win_key_caps_lock": "Caps Lock",
-    "keyboard_win_key_description": "This key acts as the Win key on the remote while held, for browsers and systems (such as Android) that never send the real one. Scroll Lock + Shift + Right Arrow sends Win + Shift + Right Arrow.",
+    "keyboard_win_key_description": "Acts as the Win key on the remote while held, for systems such as Android that never send the real one.",
     "keyboard_win_key_menu": "Menu key",
     "keyboard_win_key_off": "Off",
     "keyboard_win_key_scroll_lock": "Scroll Lock",
