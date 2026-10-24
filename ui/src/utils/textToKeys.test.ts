@@ -66,7 +66,7 @@ describe("charKeys fallbacks", () => {
     ["’", "'"],
     ["–—", "--"],
     ["…", "..."],
-    ["a b", "a b"],
+    ["a\u00a0b", "a b"],
   ])("folds %s", (text, folded) =>
     expect(textToMacroSteps(text, en)).toEqual(textToMacroSteps(folded, en)),
   );
@@ -85,7 +85,7 @@ describe("diffInput", () => {
     ["deletes", " abc", " ab", "c", ""],
     ["replaces a word", " teh ", " the ", "eh ", "he "],
     ["is empty when unchanged", " ab", " ab", "", ""],
-    ["normalizes to NFC", " é", " é", "", ""],
+    ["normalizes to NFC", " e\u0301", " é", "", ""],
     ["keeps surrogate pairs whole", " 😀", " 😁", "😀", "😁"],
   ])("%s", (_, prev, next, removed, inserted) =>
     expect(diffInput(prev, next)).toEqual({ removed, inserted }),
