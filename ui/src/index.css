@@ -29,8 +29,7 @@
   --animate-enter: enter 0.2s ease-out;
   --animate-leave: leave 0.15s ease-in forwards;
   --animate-fadeInScale: fadeInScale 1s ease-out forwards;
-  --animate-fadeInScaleFloat:
-    fadeInScaleFloat 1s ease-out forwards, float 3s ease-in-out infinite;
+  --animate-fadeInScaleFloat: fadeInScaleFloat 1s ease-out forwards, float 3s ease-in-out infinite;
   --animate-fadeIn: fadeIn 1s ease-out forwards;
   --animate-slideUpFade: slideUpFade 1s ease-out forwards;
 
@@ -109,7 +108,7 @@
       transform: translateY(0);
     }
   }
-  
+
   @keyframes fadeInStill {
     0% {
       opacity: 0;
@@ -174,11 +173,7 @@ body {
 }
 
 .grid-card {
-  background-image: linear-gradient(
-    to top right,
-    var(--grid-color-start),
-    var(--grid-color-end)
-  );
+  background-image: linear-gradient(to top right, var(--grid-color-start), var(--grid-color-end));
   transition:
     --grid-color-start 300ms cubic-bezier(0.4, 0, 0.2, 1),
     --grid-color-end 300ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -218,13 +213,47 @@ video::-webkit-media-controls {
   display: inline-block;
 }
 
+/*
+ * Keyboard size. The page's keyboard sits in a size container (WebRTCVideo), so 100cqh is the
+ * height it shares with the video. Keys fill --kb-max-h: the keyboard is --kb-rows key rows plus
+ * --kb-chrome of header, padding and row gaps. If 24px keys do not fit, the keys scroll.
+ */
+.kb-card {
+  --kb-max-h: min(100cqh - 48px, 60dvh);
+  --kb-rows: 6;
+  --kb-chrome: 65px;
+  --kb-key-h: clamp(24px, (var(--kb-max-h) - var(--kb-chrome)) / var(--kb-rows), 40px);
+  /* Labels scale with the key width too, which follows the keyboard width. */
+  --kb-font-w: 1.8cqw;
+  max-height: var(--kb-max-h);
+}
+
+/* Overlays the video, so leave half of it visible. */
+.kb-card.kb-fullscreen {
+  --kb-max-h: 50dvh;
+}
+
+.kb-card.keyboard-detached {
+  --kb-max-h: 60dvh;
+}
+
+.kb-body {
+  @apply flex flex-row;
+}
+
 .simple-keyboard-main.simple-keyboard {
-  @apply w-full md:w-[80%];
+  @apply w-[80%];
   background: none;
 }
 
-.simple-keyboard-main.simple-keyboard .hg-row:first-child {
-  @apply mb-[10px];
+.simple-keyboard.hg-theme-default .hg-button {
+  height: var(--kb-key-h, 40px);
+  padding-inline: 2px;
+  font-size: clamp(10px, min(var(--kb-key-h, 40px) * 0.42, var(--kb-font-w, 1rem)), 16px);
+}
+
+.simple-keyboard.hg-theme-default .hg-row:not(:last-child) {
+  margin-bottom: 4px;
 }
 
 .simple-keyboard-arrows.simple-keyboard {
@@ -253,7 +282,7 @@ video::-webkit-media-controls {
 }
 
 .controlArrows {
-  @apply flex w-full items-center justify-between md:w-1/5;
+  @apply flex w-1/5 items-center justify-between;
   flex-flow: column;
 }
 
@@ -266,7 +295,37 @@ video::-webkit-media-controls {
 }
 
 .controlArrows .simple-keyboard-control.simple-keyboard .hg-row:first-child {
-  @apply mb-[4px] md:mb-[10px];
+  @apply mb-[10px];
+}
+
+/* Too narrow for side by side: control and arrow keys go under the main block, next to each other. */
+@container (width < 640px) {
+  .kb-card {
+    --kb-rows: 9;
+    --kb-chrome: 83px;
+    --kb-font-w: 2.25cqw;
+  }
+
+  .kb-body {
+    @apply flex-col;
+  }
+
+  .simple-keyboard-main.simple-keyboard {
+    @apply w-full;
+  }
+
+  .controlArrows {
+    @apply w-full items-end justify-center gap-x-3;
+    flex-flow: row;
+  }
+
+  .controlArrows .simple-keyboard {
+    @apply flex-1;
+  }
+
+  .controlArrows .simple-keyboard-control.simple-keyboard .hg-row:first-child {
+    @apply mb-[4px];
+  }
 }
 
 .hg-button {
@@ -317,17 +376,14 @@ video::-webkit-media-controls {
   @apply text-white;
 }
 
+/* Grows with the keyboard instead of a fixed width that squeezes the other bottom-row keys. */
 .hg-button.hg-standardBtn[data-skbtn="Space"] {
-  @apply md:w-[350px]!;
-}
-
-.hg-theme-default .hg-row .combination-key {
-  @apply inline-flex h-auto! w-auto! grow-0 py-1 text-xs;
+  flex-grow: 4;
 }
 
 .hg-theme-default .hg-row .down-key {
   background: rgb(28, 28, 28);
-  @apply text-white! font-bold!;
+  @apply font-bold! text-white!;
 }
 
 .hg-theme-default .hg-row .hg-button-container,
@@ -335,15 +391,20 @@ video::-webkit-media-controls {
   @apply mr-[2px]! md:mr-[5px]!;
 }
 
+.keyboard-detached {
+  max-width: 100vw;
+}
+
 /* Reduce font size for selected keys when keyboard is detached */
+
 .keyboard-detached .simple-keyboard-main.simple-keyboard {
-  min-width: calc(14 * 7ch);
+  min-width: min(calc(14 * 7ch), 80vw);
 }
 
 .keyboard-detached .simple-keyboard.hg-theme-default div.hg-button {
   text-wrap: auto;
   text-align: center;
-  min-width: 6ch;
+  min-width: min(6ch, 4.5vw);
 }
 .keyboard-detached .simple-keyboard.hg-theme-default .hg-button span {
   font-size: 50%;
@@ -368,7 +429,7 @@ video::-webkit-media-controls {
 .diagonal-stripes {
   background: repeating-linear-gradient(
     135deg,
-    rgba(255, 0, 0, 0.1) 0 12px, /* red-50 with 20% opacity */
-    transparent 12px 24px
+    rgba(255, 0, 0, 0.1) 0 12px,
+    /* red-50 with 20% opacity */ transparent 12px 24px
   );
 }

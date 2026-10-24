@@ -19,21 +19,50 @@ export const DetachIcon = ({ className }: { className?: string }) => {
   return <img src={DetachIconRaw} alt="Detach Icon" className={className} />;
 };
 
-function KeyboardWrapper() {
+// Keycap symbols fit narrow keys in every layout; macro labels keep the layout's words.
+const keycapSymbols = {
+  Tab: "⇥",
+  CapsLock: "⇪",
+  ShiftLeft: "⇧",
+  ShiftRight: "⇧",
+  Backspace: "⌫",
+  "(Backspace)": "⌫",
+  Delete: "⌦",
+  Enter: "⏎",
+};
+
+interface KeyboardWrapperProps {
+  /** Where the attached keyboard is mounted: in the page, or over the fullscreen video. */
+  mode?: "page" | "fullscreen";
+}
+
+/** Keeps the detached keyboard inside the visible viewport; one larger than it sticks to the origin. */
+function clampToViewport(position: { x: number; y: number }, element: HTMLElement) {
+  const { width, height } = element.getBoundingClientRect();
+  const viewport = window.visualViewport;
+  const clamp = (value: number, room: number) => Math.max(0, Math.min(value, room));
+  return {
+    x: clamp(position.x, (viewport?.width ?? window.innerWidth) - width),
+    y: clamp(position.y, (viewport?.height ?? window.innerHeight) - height),
+  };
+}
+
+function KeyboardWrapper({ mode = "page" }: KeyboardWrapperProps) {
   const keyboardRef = useRef<HTMLDivElement>(null);
   const { isAttachedVirtualKeyboardVisible, setAttachedVirtualKeyboardVisibility } = useUiStore();
   const { keyboardLedState, keysDownState, isVirtualKeyboardEnabled, setVirtualKeyboardEnabled } =
     useHidStore();
-  const { handleKeyPress, executeMacro } = useKeyboard();
+  const { handleKeyPress } = useKeyboard();
   const { selectedKeyboard } = useKeyboardLayout();
 
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [newPosition, setNewPosition] = useState({ x: 0, y: 0 });
 
-  const keyDisplayMap = useMemo(() => {
-    return selectedKeyboard.keyDisplayMap;
-  }, [selectedKeyboard]);
+  const keyDisplayMap = useMemo(
+    () => ({ ...selectedKeyboard.keyDisplayMap, ...keycapSymbols }),
+    [selectedKeyboard],
+  );
 
   const virtualKeyboard = useMemo(() => {
     return selectedKeyboard.virtualKeyboard;
@@ -92,18 +121,26 @@ function KeyboardWrapper() {
         const newX = clientX - position.x;
         const newY = clientY - position.y;
 
-        const rect = keyboardRef.current.getBoundingClientRect();
-        const maxX = window.innerWidth - rect.width;
-        const maxY = window.innerHeight - rect.height;
-
-        setNewPosition({
-          x: Math.min(maxX, Math.max(0, newX)),
-          y: Math.min(maxY, Math.max(0, newY)),
-        });
+        setNewPosition(clampToViewport({ x: newX, y: newY }, keyboardRef.current));
       }
     },
     [isDragging, position.x, position.y],
   );
+
+  // Keep a detached keyboard on screen after a rotation or resize.
+  useEffect(() => {
+    const element = keyboardRef.current;
+    if (isAttachedVirtualKeyboardVisible || !isVirtualKeyboardEnabled || !element) return;
+
+    const keepInside = () => setNewPosition(current => clampToViewport(current, element));
+    keepInside();
+    window.addEventListener("resize", keepInside);
+    window.visualViewport?.addEventListener("resize", keepInside);
+    return () => {
+      window.removeEventListener("resize", keepInside);
+      window.visualViewport?.removeEventListener("resize", keepInside);
+    };
+  }, [isAttachedVirtualKeyboardVisible, isVirtualKeyboardEnabled]);
 
   const endDrag = useCallback(() => {
     setIsDragging(false);
@@ -149,26 +186,6 @@ function KeyboardWrapper() {
       e?.preventDefault();
       e?.stopPropagation();
 
-      // handle the fake key-macros we have defined for common combinations
-      if (key === "CtrlAltDelete") {
-        await executeMacro([
-          { keys: ["Delete"], modifiers: ["ControlLeft", "AltLeft"], delay: 100 },
-        ]);
-        return;
-      }
-
-      if (key === "AltMetaEscape") {
-        await executeMacro([{ keys: ["Escape"], modifiers: ["AltLeft", "MetaLeft"], delay: 100 }]);
-        return;
-      }
-
-      if (key === "CtrlAltBackspace") {
-        await executeMacro([
-          { keys: ["Backspace"], modifiers: ["ControlLeft", "AltLeft"], delay: 100 },
-        ]);
-        return;
-      }
-
       // if they press any of the latching keys, we send a keypress down event and the release it automatically (on timer)
       if (latchingKeys.includes(key)) {
         console.debug(`Latching key pressed: ${key} sending down and delayed up pair`);
@@ -193,16 +210,11 @@ function KeyboardWrapper() {
       void handleKeyPress(keys[cleanKey], true);
       setTimeout(() => void handleKeyPress(keys[cleanKey], false), 50);
     },
-    [executeMacro, handleKeyPress, keyNamesForDownKeys],
+    [handleKeyPress, keyNamesForDownKeys],
   );
 
   return (
-    <div
-      className="transition-all duration-500 ease-in-out"
-      style={{
-        marginBottom: isVirtualKeyboardEnabled ? "0px" : `-${350}px`,
-      }}
-    >
+    <div>
       <AnimatePresence>
         {isVirtualKeyboardEnabled && (
           <motion.div
@@ -228,20 +240,27 @@ function KeyboardWrapper() {
               }}
             >
               <Card
-                className={cx("overflow-hidden", {
-                  "rounded-none": isAttachedVirtualKeyboardVisible,
-                  "keyboard-detached": !isAttachedVirtualKeyboardVisible,
-                })}
+                className={cx(
+                  "kb-card flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]",
+                  {
+                    "rounded-none": isAttachedVirtualKeyboardVisible,
+                    "keyboard-detached": !isAttachedVirtualKeyboardVisible,
+                    "kb-fullscreen": mode === "fullscreen",
+                  },
+                )}
               >
-                <div className="flex items-center justify-center border-b border-b-slate-800/30 bg-white px-2 py-4 dark:border-b-slate-300/20 dark:bg-slate-800">
+                <div className="flex min-h-[34px] shrink-0 items-center justify-center border-b border-b-slate-800/30 bg-white px-2 py-1.5 dark:border-b-slate-300/20 dark:bg-slate-800">
                   <div className="absolute left-2 flex items-center gap-x-2">
                     {isAttachedVirtualKeyboardVisible ? (
-                      <Button
-                        size="XS"
-                        theme="light"
-                        text={m.detach()}
-                        onClick={() => setAttachedVirtualKeyboardVisibility(false)}
-                      />
+                      // Detaching a keyboard that overlays the fullscreen video is no use.
+                      mode !== "fullscreen" && (
+                        <Button
+                          size="XS"
+                          theme="light"
+                          text={m.detach()}
+                          onClick={() => setAttachedVirtualKeyboardVisibility(false)}
+                        />
+                      )
                     ) : (
                       <Button
                         size="XS"
@@ -276,18 +295,14 @@ function KeyboardWrapper() {
                   </div>
                 </div>
 
-                <div>
-                  <div className="flex flex-col bg-blue-50/80 md:flex-row dark:bg-slate-700">
+                <div className="min-h-0 overflow-y-auto">
+                  <div className="kb-body bg-blue-50/80 dark:bg-slate-700">
                     <Keyboard
                       baseClass="simple-keyboard-main"
                       layoutName={mainLayoutName}
                       onKeyPress={onKeyDown}
                       onKeyReleased={onKeyUp}
                       buttonTheme={[
-                        {
-                          class: "combination-key",
-                          buttons: "CtrlAltDelete AltMetaEscape CtrlAltBackspace",
-                        },
                         {
                           class: "down-key",
                           buttons: keyNamesForDownKeys.join(" "),
