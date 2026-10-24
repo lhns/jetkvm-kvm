@@ -85,11 +85,9 @@ export interface UIState {
   isEmbedMode: boolean;
   setEmbedMode: (enabled: boolean) => void;
 
-  // The hidden field behind the System keyboard, and whether it has focus (= keyboard open).
+  // The hidden field behind the System keyboard; it has focus while that keyboard is open.
   systemKeyboardInput: HTMLTextAreaElement | null;
   setSystemKeyboardInput: (element: HTMLTextAreaElement | null) => void;
-  isSystemKeyboardOpen: boolean;
-  setSystemKeyboardOpen: (open: boolean) => void;
 }
 
 export const useUiStore = create<UIState>(set => ({
@@ -132,8 +130,6 @@ export const useUiStore = create<UIState>(set => ({
 
   systemKeyboardInput: null,
   setSystemKeyboardInput: element => set({ systemKeyboardInput: element }),
-  isSystemKeyboardOpen: false,
-  setSystemKeyboardOpen: open => set({ isSystemKeyboardOpen: open }),
 }));
 
 export interface RTCState {

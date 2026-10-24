@@ -1,26 +1,36 @@
 import { FaKeyboard } from "react-icons/fa6";
 import { LuKeyboard, LuTabletSmartphone } from "react-icons/lu";
 
+import { useHidStore, useSettingsStore, useUiStore } from "@hooks/stores";
 import { Button } from "@components/Button";
 import { SplitButtonCaret, SplitButtonGroup, SplitButtonPrimary } from "@components/SplitButton";
-import useKeyboardChoice from "@hooks/useKeyboardChoice";
+import { openSystemKeyboard } from "@components/SystemKeyboardInput";
 import { m } from "@localizations/messages.js";
 
-/** The action bar's keyboard button; a split button on touch devices, where there are two keyboards. */
+/** The action bar's keyboard button; a split button on touch devices, which have two keyboards. */
 export default function KeyboardButton() {
-  const { touch, lastKeyboard, openPc, openSystem, toggle } = useKeyboardChoice();
+  const { isVirtualKeyboardEnabled, setVirtualKeyboardEnabled } = useHidStore();
+  const lastKeyboard = useSettingsStore(s => s.lastKeyboard);
 
-  if (!touch) {
+  if (navigator.maxTouchPoints === 0) {
     return (
       <Button
         size="XS"
         theme="light"
         text={m.action_bar_virtual_keyboard()}
         LeadingIcon={FaKeyboard}
-        onClick={toggle}
+        onClick={() => setVirtualKeyboardEnabled(!isVirtualKeyboardEnabled)}
       />
     );
   }
+
+  const toggle = () => {
+    const field = useUiStore.getState().systemKeyboardInput;
+    if (isVirtualKeyboardEnabled) setVirtualKeyboardEnabled(false);
+    else if (field && document.activeElement === field) field.blur();
+    else if (lastKeyboard === "system") openSystemKeyboard();
+    else setVirtualKeyboardEnabled(true);
+  };
 
   return (
     <SplitButtonGroup>
@@ -37,13 +47,13 @@ export default function KeyboardButton() {
           {
             label: m.keyboard_pc(),
             icon: LuKeyboard,
-            onClick: openPc,
+            onClick: () => setVirtualKeyboardEnabled(true),
             active: lastKeyboard === "pc",
           },
           {
             label: m.keyboard_system(),
             icon: LuTabletSmartphone,
-            onClick: openSystem,
+            onClick: openSystemKeyboard,
             active: lastKeyboard === "system",
           },
         ]}

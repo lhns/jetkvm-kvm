@@ -4,10 +4,10 @@ import { LuCommand, LuKeyboard, LuTabletSmartphone } from "react-icons/lu";
 import { useHidStore, useMacrosStore, useSettingsStore, useVideoStore } from "@hooks/stores";
 import useKeyboard, { type MacroSteps } from "@hooks/useKeyboard";
 import { useJsonRpc } from "@hooks/useJsonRpc";
-import useKeyboardChoice from "@hooks/useKeyboardChoice";
 import { useMultiTouchGestures } from "@hooks/useMultiTouchGestures";
 import { Button } from "@components/Button";
 import Card from "@components/Card";
+import { openSystemKeyboard } from "@components/SystemKeyboardInput";
 import VirtualKeyboard from "@components/VirtualKeyboard";
 import { keys, modifiers } from "@/keyboardMappings";
 import { blackBarSpot, resolveSwipeAction } from "@/utils/fullscreenShortcuts";
@@ -33,7 +33,7 @@ export default function FullscreenShortcuts() {
   const { swipeLeftAction, swipeRightAction } = useSettingsStore();
   const { containerElement, width, height, clientWidth, clientHeight } = useVideoStore();
   const { keysDownState, setVirtualKeyboardEnabled } = useHidStore();
-  const { touch, openPc, openSystem } = useKeyboardChoice();
+  const touch = navigator.maxTouchPoints > 0;
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Leaving fullscreen unmounts this; a held sticky modifier would otherwise stay down on the remote.
@@ -147,19 +147,19 @@ export default function FullscreenShortcuts() {
               </div>
 
               <div className="flex items-center justify-between gap-2">
-                {touch ? (
-                  <div className="flex gap-2">
-                    <Button
-                      size="SM"
-                      theme="light"
-                      LeadingIcon={LuKeyboard}
-                      text={m.keyboard_pc()}
-                      data-testid="fs-keyboard"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        openPc();
-                      }}
-                    />
+                <div className="flex gap-2">
+                  <Button
+                    size="SM"
+                    theme="light"
+                    LeadingIcon={LuKeyboard}
+                    text={touch ? m.keyboard_pc() : m.fullscreen_menu_keyboard()}
+                    data-testid="fs-keyboard"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setVirtualKeyboardEnabled(true);
+                    }}
+                  />
+                  {touch && (
                     <Button
                       size="SM"
                       theme="light"
@@ -168,23 +168,11 @@ export default function FullscreenShortcuts() {
                       data-testid="fs-keyboard-system"
                       onClick={() => {
                         setMenuOpen(false);
-                        openSystem();
+                        openSystemKeyboard();
                       }}
                     />
-                  </div>
-                ) : (
-                  <Button
-                    size="SM"
-                    theme="light"
-                    LeadingIcon={LuKeyboard}
-                    text={m.fullscreen_menu_keyboard()}
-                    data-testid="fs-keyboard"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setVirtualKeyboardEnabled(true);
-                    }}
-                  />
-                )}
+                  )}
+                </div>
                 <Button
                   size="SM"
                   theme="blank"

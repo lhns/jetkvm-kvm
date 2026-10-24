@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { useHidStore, useUiStore } from "@hooks/stores";
+import { useHidStore, useSettingsStore, useUiStore } from "@hooks/stores";
 import useKeyboard from "@hooks/useKeyboard";
 import useKeyboardLayout from "@hooks/useKeyboardLayout";
 import { m } from "@localizations/messages.js";
@@ -16,10 +16,18 @@ const HARD_RESET_LENGTH = 64;
 const KEYBOARD_SHOWN_PX = 120;
 const KEYBOARD_GONE_PX = 60;
 
+// Must run synchronously in the tap: iOS only opens the keyboard from a user gesture.
+export function openSystemKeyboard() {
+  const el = useUiStore.getState().systemKeyboardInput;
+  // On Android the field can keep focus with the keyboard hidden; refocusing reopens it.
+  if (document.activeElement === el) el?.blur();
+  el?.focus({ preventScroll: true });
+}
+
 /**
  * Hidden field that opens the OS keyboard. Every input event is diffed against the previous value
- * and sent as Backspaces plus the inserted text through the Paste text key mapping, so
- * autocorrect, suggestions, swipe and dictation work without looking at `inputType`.
+ * and sent as Backspaces plus the inserted text, so autocorrect, suggestions, swipe and dictation
+ * work without looking at `inputType`.
  */
 export default function SystemKeyboardInput() {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -32,7 +40,7 @@ export default function SystemKeyboardInput() {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const { setSystemKeyboardInput, setSystemKeyboardOpen } = useUiStore.getState();
+    const { setSystemKeyboardInput } = useUiStore.getState();
     setSystemKeyboardInput(el);
 
     // This effect owns the value and `prev`: a programmatic set fires no `input` event.
@@ -60,12 +68,8 @@ export default function SystemKeyboardInput() {
     const onInput = () => {
       const next = el.value;
       const { executeMacro, selectedKeyboard } = latest.current;
-      const steps = inputToMacroSteps(
-        prev,
-        next,
-        selectedKeyboard,
-        useHidStore.getState().keysDownState.modifier,
-      );
+      const held = useHidStore.getState().keysDownState.modifier;
+      const steps = inputToMacroSteps(prev, next, selectedKeyboard, held);
       prev = next;
       if (steps.length > 0) {
         // Serialized so the legacy client-side path doesn't interleave macros.
@@ -101,7 +105,8 @@ export default function SystemKeyboardInput() {
 
     const onFocus = () => {
       reset();
-      setSystemKeyboardOpen(true);
+      useHidStore.getState().setVirtualKeyboardEnabled(false);
+      useSettingsStore.getState().setLastKeyboard("system");
       // The viewport may still be shrunk from the keyboard that was just refocused.
       checkViewport();
     };
@@ -109,41 +114,33 @@ export default function SystemKeyboardInput() {
       composing = false;
       keyboardShown = false;
       reset();
-      setSystemKeyboardOpen(false);
-    };
-    const onCompositionStart = () => {
-      composing = true;
     };
     const onCompositionEnd = () => {
       composing = false;
       maybeReset();
     };
 
-    el.addEventListener("input", onInput);
-    el.addEventListener("focus", onFocus);
-    el.addEventListener("blur", onBlur);
-    el.addEventListener("compositionstart", onCompositionStart);
-    el.addEventListener("compositionend", onCompositionEnd);
-    document.addEventListener("selectionchange", pinCaret);
-    vv?.addEventListener("resize", checkViewport);
-    reset();
+    const abort = new AbortController();
+    const { signal } = abort;
+    el.addEventListener("input", onInput, { signal });
+    el.addEventListener("focus", onFocus, { signal });
+    el.addEventListener("blur", onBlur, { signal });
+    el.addEventListener("compositionstart", () => (composing = true), { signal });
+    el.addEventListener("compositionend", onCompositionEnd, { signal });
+    document.addEventListener("selectionchange", pinCaret, { signal });
+    vv?.addEventListener("resize", checkViewport, { signal });
 
     return () => {
-      el.removeEventListener("input", onInput);
-      el.removeEventListener("focus", onFocus);
-      el.removeEventListener("blur", onBlur);
-      el.removeEventListener("compositionstart", onCompositionStart);
-      el.removeEventListener("compositionend", onCompositionEnd);
-      document.removeEventListener("selectionchange", pinCaret);
-      vv?.removeEventListener("resize", checkViewport);
+      abort.abort();
       setSystemKeyboardInput(null);
-      setSystemKeyboardOpen(false);
     };
   }, []);
 
   // The PC keyboard replaces this one; its own close button needs no knowledge of the field.
   useEffect(() => {
-    if (isPcKeyboardOpen && document.activeElement === ref.current) ref.current?.blur();
+    if (!isPcKeyboardOpen) return;
+    useSettingsStore.getState().setLastKeyboard("pc");
+    ref.current?.blur();
   }, [isPcKeyboardOpen]);
 
   // Keys typed here must not reach the document handler, which forwards by `e.code` and
