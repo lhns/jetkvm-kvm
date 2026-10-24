@@ -235,6 +235,12 @@ video::-webkit-media-controls {
 
 .kb-card.keyboard-detached {
   --kb-max-h: 60dvh;
+  /* Narrow keys: smaller labels, and a lower floor than the attached keyboard's 10px. */
+  --kb-font-w: 1.25cqw;
+}
+
+.kb-card.keyboard-detached .simple-keyboard.hg-theme-default .hg-button {
+  font-size: clamp(8px, min(var(--kb-key-h, 40px) * 0.42, var(--kb-font-w)), 16px);
 }
 
 .kb-body {
@@ -395,8 +401,6 @@ video::-webkit-media-controls {
   max-width: 100vw;
 }
 
-/* Reduce font size for selected keys when keyboard is detached */
-
 .keyboard-detached .simple-keyboard-main.simple-keyboard {
   min-width: min(calc(14 * 7ch), 80vw);
 }
@@ -405,9 +409,6 @@ video::-webkit-media-controls {
   text-wrap: auto;
   text-align: center;
   min-width: min(6ch, 4.5vw);
-}
-.keyboard-detached .simple-keyboard.hg-theme-default .hg-button span {
-  font-size: 50%;
 }
 
 /* Hide the scrollbar by setting the scrollbar color to the background color */
