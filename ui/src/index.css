@@ -396,9 +396,27 @@ video::-webkit-media-controls {
   flex-grow: 4;
 }
 
+/* Blank layout tokens are spacers like the gaps on a physical keyboard: same width, nothing drawn. */
+.hg-theme-default .hg-button[data-skbtn=""] {
+  @apply pointer-events-none invisible;
+}
+
+/* The main block's gaps (de_DE F-row groups) are a quarter key wide; the arrow block's keep a key. */
+.simple-keyboard-main .hg-button[data-skbtn=""] {
+  flex: 0.25 1 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* Tap feedback. Must come before .down-key: both are !important, so a held key stays blue. */
+.hg-theme-default .hg-button.hg-activeButton {
+  @apply bg-slate-200! dark:bg-slate-600!;
+}
+
+/* A key the remote holds down. Beats the dark .hg-button background above. */
 .hg-theme-default .hg-row .down-key {
-  background: rgb(28, 28, 28);
-  @apply font-bold! text-white!;
+  @apply bg-blue-700! font-semibold! text-white! dark:bg-blue-600!;
 }
 
 .hg-theme-default .hg-row .hg-button-container,
