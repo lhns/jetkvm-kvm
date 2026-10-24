@@ -7,7 +7,6 @@ import { cx } from "@/cva.config";
 import { isWindows } from "@/utils";
 import useKeyboard from "@hooks/useKeyboard";
 import useMouse from "@hooks/useMouse";
-import useVisibleViewportHeight from "@hooks/useVisibleViewportHeight";
 import { useTouchInput } from "@hooks/useTouchInput";
 import {
   useHidStore,
@@ -30,7 +29,6 @@ import {
 } from "@components/VideoOverlay";
 import OcrOverlay from "@components/OcrOverlay";
 import { keys } from "@/keyboardMappings";
-import { shouldCompactBars } from "@/utils/compactBars";
 import { isLockAllowed } from "@/utils/lockPermission";
 import { remapWinKey } from "@/utils/keyRemap";
 import { recentlyTouched } from "@/utils/touchRecency";
@@ -279,11 +277,8 @@ export default function WebRTCVideo({
 
   // On a short screen the open keyboard needs the height of the status and macro bars.
   const isVirtualKeyboardEnabled = useHidStore(state => state.isVirtualKeyboardEnabled);
-  const viewportHeight = useVisibleViewportHeight();
-  const compactBars = shouldCompactBars({
-    keyboardOpen: isVirtualKeyboardEnabled && !isFullscreen,
-    viewportHeight,
-  });
+  const hideOnShortScreen =
+    isVirtualKeyboardEnabled && !isFullscreen && "[@media(max-height:519px)]:hidden";
   const toggleFullscreen = useCallback(
     () => (isFullscreen ? exitFullscreen() : requestFullscreen()),
     [isFullscreen, exitFullscreen, requestFullscreen],
@@ -714,7 +709,9 @@ export default function WebRTCVideo({
         <div className="flex flex-col">
           <fieldset disabled={peerConnection?.connectionState !== "connected"} className="contents">
             <Actionbar isFullscreen={isFullscreen} toggleFullscreen={toggleFullscreen} />
-            {!compactBars && <MacroBar />}
+            <div className={cx(hideOnShortScreen)}>
+              <MacroBar />
+            </div>
           </fieldset>
         </div>
       </div>
@@ -814,8 +811,8 @@ export default function WebRTCVideo({
           </div>
         </div>
       </div>
-      {!hideStatusBar && !compactBars && (
-        <div>
+      {!hideStatusBar && (
+        <div className={cx(hideOnShortScreen)}>
           <InfoBar />
         </div>
       )}
