@@ -14,7 +14,6 @@ export default function useKeyboardChoice() {
   const lastKeyboard: KeyboardKind = touch ? storedKind : "pc";
 
   const openPc = useCallback(() => {
-    useUiStore.getState().systemKeyboardInput?.blur();
     setLastKeyboard("pc");
     setPcOpen(true);
   }, [setLastKeyboard, setPcOpen]);
