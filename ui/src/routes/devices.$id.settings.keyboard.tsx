@@ -92,6 +92,7 @@ export default function SettingsKeyboardRoute() {
           <SelectMenuBasic
             size="SM"
             label=""
+            className="min-w-36"
             value={winKeyAs}
             onChange={e => setWinKeyAs(e.target.value)}
             options={WIN_KEY_SETTINGS.map(key => ({ value: key, label: winKeyLabels[key]() }))}

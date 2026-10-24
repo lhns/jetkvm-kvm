@@ -168,7 +168,7 @@ export default function FullscreenShortcuts() {
 
       {/* The page's keyboard is outside the fullscreen element, so it is mounted here instead. */}
       <div data-fs-overlay className="absolute inset-x-0 bottom-0 z-20">
-        <VirtualKeyboard />
+        <VirtualKeyboard mode="fullscreen" />
       </div>
     </>
   );
