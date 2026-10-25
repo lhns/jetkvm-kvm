@@ -65,7 +65,15 @@ export function SplitButtonGroup({
   return <div className={cx("inline-flex", className)}>{children}</div>;
 }
 
-export function SplitButtonCaret({ menuItems }: { menuItems: SplitButtonMenuItem[] }) {
+// `modal={false}` keeps the rest of the page out of `inert`, so an item can focus an element
+// outside the menu (the System keyboard's field) while its click is still running.
+export function SplitButtonCaret({
+  menuItems,
+  modal,
+}: {
+  menuItems: SplitButtonMenuItem[];
+  modal?: boolean;
+}) {
   return (
     <Menu as="div" className="relative">
       <MenuButton
@@ -83,6 +91,7 @@ export function SplitButtonCaret({ menuItems }: { menuItems: SplitButtonMenuItem
 
       <MenuItems
         anchor="bottom end"
+        modal={modal}
         transition
         className={cx(
           "z-20 mt-1 min-w-[160px] origin-top-right rounded-md",

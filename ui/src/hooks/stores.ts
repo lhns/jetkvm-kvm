@@ -84,6 +84,10 @@ export interface UIState {
 
   isEmbedMode: boolean;
   setEmbedMode: (enabled: boolean) => void;
+
+  // The hidden field behind the System keyboard; it has focus while that keyboard is open.
+  systemKeyboardInput: HTMLTextAreaElement | null;
+  setSystemKeyboardInput: (element: HTMLTextAreaElement | null) => void;
 }
 
 export const useUiStore = create<UIState>(set => ({
@@ -123,6 +127,9 @@ export const useUiStore = create<UIState>(set => ({
 
   isEmbedMode: false,
   setEmbedMode: (enabled: boolean) => set({ isEmbedMode: enabled }),
+
+  systemKeyboardInput: null,
+  setSystemKeyboardInput: element => set({ systemKeyboardInput: element }),
 }));
 
 export interface RTCState {
@@ -415,7 +422,13 @@ export interface SettingsState {
   // moves it like a laptop trackpad (relative reports). Independent of the mouse mode.
   touchInput: TouchInput;
   setTouchInput: (mode: TouchInput) => void;
+
+  // Keyboard the action bar button opens: the page's own, or the OS keyboard.
+  lastKeyboard: KeyboardKind;
+  setLastKeyboard: (kind: KeyboardKind) => void;
 }
+
+export type KeyboardKind = "pc" | "system";
 
 export type TouchInput = "direct" | "trackpad";
 
@@ -505,6 +518,9 @@ export const useSettingsStore = create(
 
       touchInput: "direct",
       setTouchInput: (mode: TouchInput) => set({ touchInput: mode }),
+
+      lastKeyboard: "pc",
+      setLastKeyboard: (kind: KeyboardKind) => set({ lastKeyboard: kind }),
     }),
     {
       name: "settings",
