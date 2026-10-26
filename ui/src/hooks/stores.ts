@@ -57,8 +57,11 @@ export interface UIState {
   sidebarView: AvailableSidebarViews | null;
   setSidebarView: (view: AvailableSidebarViews | null) => void;
 
+  // Pauses the video's FocusTrap when a caller asks, and while the System keyboard field has
+  // focus: the trap would pull focus straight back off it.
   disableVideoFocusTrap: boolean;
   setDisableVideoFocusTrap: (enabled: boolean) => void;
+  videoFocusTrapDisabledByCaller: boolean;
 
   isWakeOnLanModalVisible: boolean;
   setWakeOnLanModalVisibility: (enabled: boolean) => void;
@@ -88,6 +91,8 @@ export interface UIState {
   // The hidden field behind the System keyboard; it has focus while that keyboard is open.
   systemKeyboardInput: HTMLTextAreaElement | null;
   setSystemKeyboardInput: (element: HTMLTextAreaElement | null) => void;
+  isSystemKeyboardFocused: boolean;
+  setSystemKeyboardFocused: (focused: boolean) => void;
 }
 
 export const useUiStore = create<UIState>(set => ({
@@ -98,7 +103,12 @@ export const useUiStore = create<UIState>(set => ({
   setSidebarView: (view: AvailableSidebarViews | null) => set({ sidebarView: view }),
 
   disableVideoFocusTrap: false,
-  setDisableVideoFocusTrap: (enabled: boolean) => set({ disableVideoFocusTrap: enabled }),
+  setDisableVideoFocusTrap: (enabled: boolean) =>
+    set(state => ({
+      videoFocusTrapDisabledByCaller: enabled,
+      disableVideoFocusTrap: enabled || state.isSystemKeyboardFocused,
+    })),
+  videoFocusTrapDisabledByCaller: false,
 
   isWakeOnLanModalVisible: false,
   setWakeOnLanModalVisibility: (enabled: boolean) => set({ isWakeOnLanModalVisible: enabled }),
@@ -130,6 +140,12 @@ export const useUiStore = create<UIState>(set => ({
 
   systemKeyboardInput: null,
   setSystemKeyboardInput: element => set({ systemKeyboardInput: element }),
+  isSystemKeyboardFocused: false,
+  setSystemKeyboardFocused: focused =>
+    set(state => ({
+      isSystemKeyboardFocused: focused,
+      disableVideoFocusTrap: focused || state.videoFocusTrapDisabledByCaller,
+    })),
 }));
 
 export interface RTCState {

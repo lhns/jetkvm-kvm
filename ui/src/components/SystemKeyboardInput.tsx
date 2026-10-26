@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { flushSync } from "react-dom";
 
 import { useHidStore, useSettingsStore, useUiStore } from "@hooks/stores";
 import useKeyboard from "@hooks/useKeyboard";
@@ -18,10 +19,13 @@ const KEYBOARD_GONE_PX = 60;
 
 // Must run synchronously in the tap: iOS only opens the keyboard from a user gesture.
 export function openSystemKeyboard() {
-  const el = useUiStore.getState().systemKeyboardInput;
+  const { systemKeyboardInput: el, setSystemKeyboardFocused } = useUiStore.getState();
+  if (!el) return;
   // On Android the field can keep focus with the keyboard hidden; refocusing reopens it.
-  if (document.activeElement === el) el?.blur();
-  el?.focus({ preventScroll: true });
+  if (document.activeElement === el) el.blur();
+  // The FocusTrap only pauses on re-render; unflushed, it would refocus its button on focusin.
+  flushSync(() => setSystemKeyboardFocused(true));
+  el.focus({ preventScroll: true });
 }
 
 /**
@@ -104,6 +108,7 @@ export default function SystemKeyboardInput() {
     };
 
     const onFocus = () => {
+      useUiStore.getState().setSystemKeyboardFocused(true);
       reset();
       useHidStore.getState().setVirtualKeyboardEnabled(false);
       useSettingsStore.getState().setLastKeyboard("system");
@@ -111,6 +116,7 @@ export default function SystemKeyboardInput() {
       checkViewport();
     };
     const onBlur = () => {
+      useUiStore.getState().setSystemKeyboardFocused(false);
       composing = false;
       keyboardShown = false;
       reset();
@@ -133,6 +139,7 @@ export default function SystemKeyboardInput() {
     return () => {
       abort.abort();
       setSystemKeyboardInput(null);
+      useUiStore.getState().setSystemKeyboardFocused(false);
     };
   }, []);
 
