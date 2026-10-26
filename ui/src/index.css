@@ -223,8 +223,8 @@ video::-webkit-media-controls {
 }
 
 /*
- * Keyboard size. The page's keyboard sits in a size container (WebRTCVideo), so 100cqh is the
- * height it shares with the video. Keys fill --kb-max-h: the keyboard is --kb-rows key rows plus
+ * Keyboard size. The page's keyboard overlays the video in a size container spanning the video
+ * page (WebRTCVideo), so 100cqh is that page's height, less room for the action bar. Keys fill --kb-max-h: the keyboard is --kb-rows key rows plus
  * --kb-chrome of header, padding and row gaps. If 24px keys do not fit, the keys scroll.
  */
 .kb-card {
