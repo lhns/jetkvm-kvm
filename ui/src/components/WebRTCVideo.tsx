@@ -8,7 +8,13 @@ import { isWindows } from "@/utils";
 import useKeyboard from "@hooks/useKeyboard";
 import useMouse from "@hooks/useMouse";
 import { useTouchInput } from "@hooks/useTouchInput";
-import { useRTCStore, useSettingsStore, useUiStore, useVideoStore } from "@hooks/stores";
+import {
+  useHidStore,
+  useRTCStore,
+  useSettingsStore,
+  useUiStore,
+  useVideoStore,
+} from "@hooks/stores";
 import VirtualKeyboard from "@components/VirtualKeyboard";
 import FullscreenShortcuts from "@components/FullscreenShortcuts";
 import SystemKeyboardInput from "@components/SystemKeyboardInput";
@@ -269,6 +275,15 @@ export default function WebRTCVideo({
   }, []);
 
   const isFullscreen = isNativeFullscreen || isPseudoFullscreen;
+
+  // On a short screen the docked keyboard needs the height of the status and macro bars.
+  const isVirtualKeyboardEnabled = useHidStore(state => state.isVirtualKeyboardEnabled);
+  const isKeyboardAttached = useUiStore(state => state.isAttachedVirtualKeyboardVisible);
+  const hideOnShortScreen =
+    isVirtualKeyboardEnabled &&
+    isKeyboardAttached &&
+    !isFullscreen &&
+    "[@media(max-height:519px)]:hidden";
   const toggleFullscreen = useCallback(
     () => (isFullscreen ? exitFullscreen() : requestFullscreen()),
     [isFullscreen, exitFullscreen, requestFullscreen],
@@ -694,12 +709,14 @@ export default function WebRTCVideo({
   }, [videoSaturation, videoBrightness, videoContrast]);
 
   return (
-    <div className="relative grid h-full w-full grid-rows-(--grid-layout)">
+    <div className="grid h-full w-full grid-rows-(--grid-layout)">
       <div className="flex min-h-[39.5px] flex-col">
         <div className="flex flex-col">
           <fieldset disabled={peerConnection?.connectionState !== "connected"} className="contents">
             <Actionbar isFullscreen={isFullscreen} toggleFullscreen={toggleFullscreen} />
-            <MacroBar />
+            <div className={cx(hideOnShortScreen)}>
+              <MacroBar />
+            </div>
           </fieldset>
         </div>
       </div>
@@ -717,7 +734,7 @@ export default function WebRTCVideo({
           <div className="flex h-full flex-col">
             <div className="relative grow overflow-hidden">
               <div className="flex h-full flex-col">
-                {/* The fullscreen keyboard sizes itself to this box (.kb-card in index.css). */}
+                {/* The keyboard sizes itself to this box (.kb-card in index.css). */}
                 <div className="[container-type:size] grid grow grid-rows-(--grid-bodyFooter) overflow-hidden">
                   {/* In relative mouse mode and under https, we enable the pointer lock, and to do so we need a bar to show the user to click on the video to enable mouse control */}
                   <PointerLockBar show={showPointerLockBar} />
@@ -730,9 +747,10 @@ export default function WebRTCVideo({
                     />
                     <div
                       ref={fullscreenContainerRef}
-                      className={cx("relative flex h-full w-full items-center justify-center", {
-                        "fixed inset-0 z-1000 h-dvh w-dvw bg-black": isPseudoFullscreen,
-                      })}
+                      className={cx(
+                        "relative flex h-full w-full flex-col items-center justify-center",
+                        { "fixed inset-0 z-1000 h-dvh w-dvw bg-black": isPseudoFullscreen },
+                      )}
                     >
                       {isPseudoFullscreen && (
                         <button
@@ -759,7 +777,7 @@ export default function WebRTCVideo({
                         controlsList="nofullscreen"
                         style={videoStyle}
                         className={cx(
-                          "h-full w-full touch-none object-contain transition-all duration-1000 select-none [-webkit-touch-callout:none]",
+                          "h-full min-h-0 w-full flex-1 touch-none object-contain transition-all duration-1000 select-none [-webkit-touch-callout:none]",
                           {
                             "cursor-none": settings.isCursorHidden,
                             "pointer-events-none": isOcrMode,
@@ -793,6 +811,7 @@ export default function WebRTCVideo({
                       )}
                     </div>
                   </div>
+                  {!isFullscreen && <VirtualKeyboard />}
                 </div>
               </div>
             </div>
@@ -800,17 +819,8 @@ export default function WebRTCVideo({
         </div>
       </div>
       {!hideStatusBar && (
-        <div>
+        <div className={cx(hideOnShortScreen)}>
           <InfoBar />
-        </div>
-      )}
-      {/* Overlays the video instead of taking layout space, so the video keeps its size. The
-          keyboard sizes itself to this box (.kb-card in index.css). */}
-      {!isFullscreen && (
-        <div className="[container-type:size] pointer-events-none absolute inset-0 z-10 flex flex-col justify-end">
-          <div className="pointer-events-auto">
-            <VirtualKeyboard />
-          </div>
         </div>
       )}
     </div>

@@ -186,8 +186,9 @@ export default function FullscreenShortcuts() {
         </div>
       )}
 
-      {/* The page's keyboard is outside the fullscreen element, so it is mounted here instead. */}
-      <div data-fs-overlay className="absolute inset-x-0 bottom-0 z-20">
+      {/* The page's keyboard is outside the fullscreen element, so it is mounted here instead.
+          Docked, it sits below the video in the container's column; detached, it is fixed. */}
+      <div data-fs-overlay className="z-20 order-last w-full">
         <VirtualKeyboard mode="fullscreen" />
       </div>
     </>
