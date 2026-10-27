@@ -383,14 +383,13 @@ export function reduceGesture(prev: GestureState, ev: GestureEvent, cfg: Gesture
 export function toStreamDelta(
   dx: number,
   dy: number,
-  gain: number,
   stream: { width: number; height: number },
   displayed: { width: number; height: number },
 ): { dx: number; dy: number } {
   if (!(displayed.width > 0 && displayed.height > 0)) return { dx: 0, dy: 0 };
   return {
-    dx: (dx * gain * stream.width) / displayed.width,
-    dy: (dy * gain * stream.height) / displayed.height,
+    dx: (dx * stream.width) / displayed.width,
+    dy: (dy * stream.height) / displayed.height,
   };
 }
 
