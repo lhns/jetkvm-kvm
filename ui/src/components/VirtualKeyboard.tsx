@@ -39,12 +39,23 @@ interface KeyboardWrapperProps {
   mode?: "page" | "fullscreen";
 }
 
-/** The area a fixed element can occupy: the smaller of the layout and the (zoomed) visual viewport. */
+/**
+ * The area a fixed element can occupy: the smaller of the layout and the (zoomed) visual viewport,
+ * and in fullscreen the fullscreen element, the only part of the page that is shown.
+ */
 function visibleViewport() {
   const visual = window.visualViewport;
+  const doc = document as Document & { webkitFullscreenElement?: Element | null };
+  const fullscreen = (
+    doc.fullscreenElement ?? doc.webkitFullscreenElement
+  )?.getBoundingClientRect();
   return {
-    width: Math.min(window.innerWidth, visual?.width ?? Infinity),
-    height: Math.min(window.innerHeight, visual?.height ?? Infinity),
+    width: Math.min(window.innerWidth, visual?.width ?? Infinity, fullscreen?.width ?? Infinity),
+    height: Math.min(
+      window.innerHeight,
+      visual?.height ?? Infinity,
+      fullscreen?.height ?? Infinity,
+    ),
   };
 }
 
@@ -256,15 +267,12 @@ function KeyboardWrapper({ mode = "page" }: KeyboardWrapperProps) {
                 <div className="flex min-h-[34px] shrink-0 items-center justify-center border-b border-b-slate-800/30 bg-white px-2 py-1.5 dark:border-b-slate-300/20 dark:bg-slate-800">
                   <div className="absolute left-2 flex items-center gap-x-2">
                     {isAttachedVirtualKeyboardVisible ? (
-                      // Detaching a keyboard that overlays the fullscreen video is no use.
-                      mode !== "fullscreen" && (
-                        <Button
-                          size="XS"
-                          theme="light"
-                          text={m.detach()}
-                          onClick={() => setAttachedVirtualKeyboardVisibility(false)}
-                        />
-                      )
+                      <Button
+                        size="XS"
+                        theme="light"
+                        text={m.detach()}
+                        onClick={() => setAttachedVirtualKeyboardVisibility(false)}
+                      />
                     ) : (
                       <Button
                         size="XS"
