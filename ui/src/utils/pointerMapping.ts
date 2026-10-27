@@ -30,12 +30,7 @@ export function videoDisplayArea(
     offsetX: 0,
     offsetY: 0,
   };
-  if (!(
-    element.width > 0 &&
-    element.height > 0 &&
-    streamWidth > 0 &&
-    streamHeight > 0
-  )) {
+  if (!(element.width > 0 && element.height > 0 && streamWidth > 0 && streamHeight > 0)) {
     return area;
   }
   const elementRatio = element.width / element.height;
@@ -52,6 +47,22 @@ export function videoDisplayArea(
   return area;
 }
 
+/** Client point -> unclamped fractions of the video area; null while a size is unknown. */
+function rawStreamFromClient(
+  clientX: number,
+  clientY: number,
+  rect: Rect,
+  streamWidth: number,
+  streamHeight: number,
+): { nx: number; ny: number } | null {
+  if (!(rect.width > 0 && rect.height > 0 && streamWidth > 0 && streamHeight > 0)) return null;
+  const a = videoDisplayArea(rect, streamWidth, streamHeight);
+  return {
+    nx: (clientX - rect.left - a.offsetX) / a.width,
+    ny: (clientY - rect.top - a.offsetY) / a.height,
+  };
+}
+
 /**
  * Client point -> position on the remote screen as fractions 0..1. Null while the element or
  * stream has no size, or when the point is outside the picture (a letterbox bar): absolute
@@ -64,18 +75,9 @@ export function streamFromClient(
   streamWidth: number,
   streamHeight: number,
 ): { nx: number; ny: number } | null {
-  if (!(
-    rect.width > 0 &&
-    rect.height > 0 &&
-    streamWidth > 0 &&
-    streamHeight > 0
-  ))
-    return null;
-  const a = videoDisplayArea(rect, streamWidth, streamHeight);
-  const x = clientX - rect.left - a.offsetX;
-  const y = clientY - rect.top - a.offsetY;
-  if (x < 0 || y < 0 || x > a.width || y > a.height) return null;
-  return { nx: x / a.width, ny: y / a.height };
+  const p = rawStreamFromClient(clientX, clientY, rect, streamWidth, streamHeight);
+  if (!p || p.nx < 0 || p.nx > 1 || p.ny < 0 || p.ny > 1) return null;
+  return p;
 }
 
 /** Like streamFromClient, but snaps a point outside the picture to its nearest edge. */
@@ -86,17 +88,9 @@ export function clampedStreamFromClient(
   streamWidth: number,
   streamHeight: number,
 ): { nx: number; ny: number } | null {
-  if (!(
-    rect.width > 0 &&
-    rect.height > 0 &&
-    streamWidth > 0 &&
-    streamHeight > 0
-  ))
-    return null;
-  const a = videoDisplayArea(rect, streamWidth, streamHeight);
-  const x = Math.min(Math.max(clientX - rect.left - a.offsetX, 0), a.width);
-  const y = Math.min(Math.max(clientY - rect.top - a.offsetY, 0), a.height);
-  return { nx: x / a.width, ny: y / a.height };
+  const p = rawStreamFromClient(clientX, clientY, rect, streamWidth, streamHeight);
+  if (!p) return null;
+  return { nx: Math.min(Math.max(p.nx, 0), 1), ny: Math.min(Math.max(p.ny, 0), 1) };
 }
 
 /**
