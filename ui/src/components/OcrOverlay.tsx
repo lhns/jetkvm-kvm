@@ -6,7 +6,6 @@ import Card from "@components/Card";
 import { ConfirmDialog } from "@components/ConfirmDialog";
 import TextArea from "@components/TextArea";
 import notifications from "@/notifications";
-import { clampedStreamFromClient, videoDisplayArea } from "@/utils/pointerMapping";
 import { m } from "@localizations/messages.js";
 
 interface Rect {
@@ -123,8 +122,21 @@ function getVideoDisplayRect(
   videoHeight: number,
 ) {
   const videoRect = videoElement.getBoundingClientRect();
-  const area = videoDisplayArea(videoRect, videoWidth, videoHeight);
-  const { width: effectiveWidth, height: effectiveHeight, offsetX, offsetY } = area;
+  const elementAspectRatio = videoRect.width / videoRect.height;
+  const streamAspectRatio = videoWidth / videoHeight;
+
+  let effectiveWidth = videoRect.width;
+  let effectiveHeight = videoRect.height;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  if (elementAspectRatio > streamAspectRatio) {
+    effectiveWidth = videoRect.height * streamAspectRatio;
+    offsetX = (videoRect.width - effectiveWidth) / 2;
+  } else if (elementAspectRatio < streamAspectRatio) {
+    effectiveHeight = videoRect.width / streamAspectRatio;
+    offsetY = (videoRect.height - effectiveHeight) / 2;
+  }
 
   return { videoRect, effectiveWidth, effectiveHeight, offsetX, offsetY };
 }
@@ -251,15 +263,22 @@ function OcrOverlayContent() {
     (clientX: number, clientY: number) => {
       if (!videoElement) return { x: 0, y: 0 };
 
-      const p = clampedStreamFromClient(
-        clientX,
-        clientY,
-        videoElement.getBoundingClientRect(),
+      const { videoRect, effectiveWidth, effectiveHeight, offsetX, offsetY } = getVideoDisplayRect(
+        videoElement,
         videoWidth,
         videoHeight,
       );
-      if (!p) return { x: 0, y: 0 };
-      return { x: Math.round(p.nx * videoWidth), y: Math.round(p.ny * videoHeight) };
+
+      const relX = clientX - videoRect.left - offsetX;
+      const relY = clientY - videoRect.top - offsetY;
+
+      const scaleX = videoWidth / effectiveWidth;
+      const scaleY = videoHeight / effectiveHeight;
+
+      return {
+        x: Math.max(0, Math.min(videoWidth, Math.round(relX * scaleX))),
+        y: Math.max(0, Math.min(videoHeight, Math.round(relY * scaleY))),
+      };
     },
     [videoElement, videoWidth, videoHeight],
   );
