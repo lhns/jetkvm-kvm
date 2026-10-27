@@ -1,4 +1,5 @@
 import type { KeySequence } from "@hooks/stores";
+import type { MacroStep } from "@hooks/useKeyboard";
 
 export interface TouchSummary {
   /** Most fingers down at once during the gesture. */
@@ -11,9 +12,9 @@ export interface TouchSummary {
 
 export type MultiTouchGesture = { type: "swipe"; direction: "left" | "right" } | { type: "menu" };
 
-export const SWIPE_MIN_DISTANCE = 60;
-export const TAP_MAX_MOVE = 24;
-export const TAP_MAX_MS = 500;
+const SWIPE_MIN_DISTANCE = 60;
+const TAP_MAX_MOVE = 24;
+const TAP_MAX_MS = 500;
 
 /** Three fingers swiping sideways, or four fingers tapping. Anything else is not ours. */
 export function classifyMultiTouch(t: TouchSummary): MultiTouchGesture | null {
@@ -36,18 +37,12 @@ export const SWIPE_OFF = "off";
 const MACRO_PREFIX = "macro:";
 export const macroSwipeValue = (id: string) => `${MACRO_PREFIX}${id}`;
 
-export interface ShortcutStep {
-  keys: string[];
-  modifiers: string[];
-  delay: number;
-}
-
 /** What a swipe does: the built-in Win+Shift+Arrow, one of the user's macros, or nothing. */
 export function resolveSwipeAction(
   setting: string,
   direction: "left" | "right",
   macros: KeySequence[],
-): ShortcutStep[] | null {
+): MacroStep[] | null {
   if (setting === SWIPE_DEFAULT) {
     return [
       {

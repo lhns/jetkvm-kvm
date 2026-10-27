@@ -408,9 +408,5 @@ export function createCarry() {
       ry -= iy;
       return { dx: ix, dy: iy };
     },
-    reset() {
-      rx = 0;
-      ry = 0;
-    },
   };
 }
