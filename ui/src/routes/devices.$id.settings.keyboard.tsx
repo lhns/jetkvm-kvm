@@ -7,11 +7,11 @@ import { Checkbox } from "@components/Checkbox";
 import { SelectMenuBasic } from "@components/SelectMenuBasic";
 import { SettingsItem } from "@components/SettingsItem";
 import { SettingsPageHeader } from "@components/SettingsPageheader";
-import { WIN_KEY_SETTINGS } from "@/utils/keyRemap";
+import { WIN_KEY_SETTINGS, type WinKeySetting } from "@/utils/keyRemap";
 import notifications from "@/notifications";
 import { m } from "@localizations/messages.js";
 
-const winKeyLabels: Record<(typeof WIN_KEY_SETTINGS)[number], () => string> = {
+const winKeyLabels: Record<WinKeySetting, () => string> = {
   off: m.keyboard_win_key_off,
   ScrollLock: m.keyboard_win_key_scroll_lock,
   CapsLock: m.keyboard_win_key_caps_lock,

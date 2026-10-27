@@ -405,8 +405,7 @@ describe("pointer maths", () => {
   it("scales screen px to stream px by stream width over displayed width", () => {
     const stream = { width: 1920, height: 1080 };
     const shown = { width: 960, height: 540 };
-    expect(toStreamDelta(10, 5, 1, stream, shown)).toEqual({ dx: 20, dy: 10 });
-    expect(toStreamDelta(10, 5, 2, stream, shown)).toEqual({ dx: 40, dy: 20 });
+    expect(toStreamDelta(10, 5, stream, shown)).toEqual({ dx: 20, dy: 10 });
   });
 
   it("carries sub-pixel remainders", () => {

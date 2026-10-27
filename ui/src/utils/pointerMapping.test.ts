@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  clampedStreamFromClient,
   hidFromNormalized,
   isReleaseOnly,
   streamFromClient,
@@ -83,19 +82,6 @@ describe("streamFromClient", () => {
   it("returns null while sizes are unknown", () => {
     expect(streamFromClient(1, 1, rect(0, 0, 0, 0), 1920, 1080)).toBeNull();
     expect(streamFromClient(1, 1, rect(0, 0, 100, 100), 0, 0)).toBeNull();
-  });
-});
-
-describe("clampedStreamFromClient", () => {
-  it("snaps points outside the picture to its nearest edge", () => {
-    const r = rect(0, 0, 1000, 500);
-    expect(clampedStreamFromClient(10, 250, r, 1000, 1000)).toEqual({ nx: 0, ny: 0.5 });
-    expect(clampedStreamFromClient(990, 700, r, 1000, 1000)).toEqual({ nx: 1, ny: 1 });
-    expect(clampedStreamFromClient(-50, -50, r, 1000, 1000)).toEqual({ nx: 0, ny: 0 });
-  });
-
-  it("returns null while sizes are unknown", () => {
-    expect(clampedStreamFromClient(1, 1, rect(0, 0, 0, 0), 1920, 1080)).toBeNull();
   });
 });
 

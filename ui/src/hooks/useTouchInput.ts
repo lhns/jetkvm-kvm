@@ -81,13 +81,7 @@ export function useTouchInput(mouse: Mouse) {
         case "move": {
           // 1:1 to the displayed video; the host applies its own pointer curve.
           const area = videoDisplayArea(rect, sw, sh);
-          const d = toStreamDelta(
-            a.dx,
-            a.dy,
-            1,
-            { width: sw, height: sh },
-            { width: area.width, height: area.height },
-          );
+          const d = toStreamDelta(a.dx, a.dy, { width: sw, height: sh }, area);
           const whole = carry.take(d.dx, d.dy);
           if (whole.dx || whole.dy) m.reportTouchRel(whole.dx, whole.dy, buttons);
           return;

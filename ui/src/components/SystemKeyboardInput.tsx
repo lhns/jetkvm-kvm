@@ -142,6 +142,7 @@ export default function SystemKeyboardInput() {
     // The system bars hiding or showing jumps the height without a keyboard change: a stale
     // baseline would blur the field (or break Back detection) afterwards.
     document.addEventListener("fullscreenchange", resetBaseline, { signal });
+    document.addEventListener("webkitfullscreenchange", resetBaseline, { signal });
 
     return () => {
       abort.abort();

@@ -145,12 +145,14 @@ function KeyboardWrapper({ mode = "page" }: KeyboardWrapperProps) {
     window.addEventListener("resize", keepInside);
     window.addEventListener("orientationchange", keepInside);
     document.addEventListener("fullscreenchange", keepInside);
+    document.addEventListener("webkitfullscreenchange", keepInside);
     window.visualViewport?.addEventListener("resize", keepInside);
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", keepInside);
       window.removeEventListener("orientationchange", keepInside);
       document.removeEventListener("fullscreenchange", keepInside);
+      document.removeEventListener("webkitfullscreenchange", keepInside);
       window.visualViewport?.removeEventListener("resize", keepInside);
     };
   }, [isAttachedVirtualKeyboardVisible, isVirtualKeyboardEnabled]);
