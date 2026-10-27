@@ -5,7 +5,7 @@ import { useHidRpc } from "./useHidRpc";
 import { useMouseStore, useSettingsStore } from "./stores";
 import { splitInt8Delta } from "@/utils/mouseDelta";
 import { recentlyTouched } from "@/utils/touchRecency";
-import { hidFromNormalized, streamFromClient } from "@/utils/pointerMapping";
+import { hidFromNormalized, isReleaseOnly, streamFromClient } from "@/utils/pointerMapping";
 
 const isTouchEvent = (e: MouseEvent | PointerEvent) =>
   ("pointerType" in e && e.pointerType === "touch") || recentlyTouched();
@@ -24,8 +24,12 @@ export default function useMouse() {
 
   const { mouseMode, scrollThrottling, invertScroll } = useSettingsStore();
 
-  // Track last absolute mouse position for resetMousePosition
-  const lastAbsPos = useRef({ x: 0, y: 0 });
+  // Last absolute report: resetMousePosition resends it, and a release outside the picture
+  // goes out at this position.
+  const lastAbsPos = useRef({ x: 0, y: 0, buttons: 0 });
+  // A button went down outside the picture: the drag it starts sends nothing, even once it
+  // moves inside, until every button is up.
+  const pressedOutside = useRef(false);
 
   // RPC hooks
   const { send } = useJsonRpc();
@@ -84,7 +88,7 @@ export default function useMouse() {
       }
       // We set that for the debug info bar
       setMousePosition(x, y);
-      lastAbsPos.current = { x, y };
+      lastAbsPos.current = { x, y, buttons };
     },
     [send, reportAbsMouseEvent, setMousePosition, rpcHidReady],
   );
@@ -115,7 +119,19 @@ export default function useMouse() {
           videoWidth,
           videoHeight,
         );
-        if (!p) return;
+        if (!p) {
+          // Outside the picture: nothing, bar the release of a button pressed inside.
+          const last = lastAbsPos.current;
+          if (e.buttons & ~last.buttons) pressedOutside.current = true;
+          if (isReleaseOnly(e.buttons, last.buttons)) {
+            sendAbsMouseMovement(last.x, last.y, e.buttons);
+          }
+          return;
+        }
+        if (pressedOutside.current) {
+          if (e.buttons) return;
+          pressedOutside.current = false;
+        }
 
         sendAbsMouseMovement(hidFromNormalized(p.nx), hidFromNormalized(p.ny), e.buttons);
       },
@@ -125,6 +141,22 @@ export default function useMouse() {
   const getMouseWheelHandler = useCallback(
     () => (e: WheelEvent) => {
       if (scrollThrottling && blockWheelEvent) {
+        return;
+      }
+
+      // Absolute mode: the bars around the picture are not the remote screen.
+      const video = e.currentTarget as HTMLVideoElement | null;
+      if (
+        mouseMode === "absolute" &&
+        video &&
+        !streamFromClient(
+          e.clientX,
+          e.clientY,
+          video.getBoundingClientRect(),
+          video.videoWidth,
+          video.videoHeight,
+        )
+      ) {
         return;
       }
 
@@ -150,7 +182,7 @@ export default function useMouse() {
         setTimeout(() => setBlockWheelEvent(false), scrollThrottling);
       }
     },
-    [send, blockWheelEvent, scrollThrottling, invertScroll],
+    [send, blockWheelEvent, scrollThrottling, invertScroll, mouseMode],
   );
 
   // Wheel steps in browser convention (positive y scrolls down), as the wheel handler gets them.
