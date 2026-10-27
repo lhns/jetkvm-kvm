@@ -94,12 +94,16 @@ export default function SystemKeyboardInput() {
     let maxHeight = vv?.height ?? 0;
     let width = window.innerWidth;
     let keyboardShown = false;
+    const resetBaseline = () => {
+      if (!vv) return;
+      maxHeight = vv.height;
+      keyboardShown = false;
+    };
     const checkViewport = () => {
       if (!vv) return;
       if (window.innerWidth !== width) {
         width = window.innerWidth; // rotation
-        maxHeight = vv.height;
-        keyboardShown = false;
+        resetBaseline();
       }
       maxHeight = Math.max(maxHeight, vv.height);
       if (document.activeElement !== el) return;
@@ -135,6 +139,9 @@ export default function SystemKeyboardInput() {
     el.addEventListener("compositionend", onCompositionEnd, { signal });
     document.addEventListener("selectionchange", pinCaret, { signal });
     vv?.addEventListener("resize", checkViewport, { signal });
+    // The system bars hiding or showing jumps the height without a keyboard change: a stale
+    // baseline would blur the field (or break Back detection) afterwards.
+    document.addEventListener("fullscreenchange", resetBaseline, { signal });
 
     return () => {
       abort.abort();

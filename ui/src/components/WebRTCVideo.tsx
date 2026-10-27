@@ -755,6 +755,7 @@ export default function WebRTCVideo({
                       {isPseudoFullscreen && (
                         <button
                           type="button"
+                          onMouseDown={e => e.preventDefault()}
                           onClick={exitFullscreen}
                           aria-label={m.action_bar_exit_fullscreen()}
                           title={m.action_bar_exit_fullscreen()}
