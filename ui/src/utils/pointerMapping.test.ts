@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { hidFromNormalized, streamFromClient, videoDisplayArea } from "./pointerMapping";
+import {
+  clampedStreamFromClient,
+  hidFromNormalized,
+  isReleaseOnly,
+  streamFromClient,
+  videoDisplayArea,
+} from "./pointerMapping";
 
 const rect = (left: number, top: number, width: number, height: number) => ({
   left,
@@ -58,16 +64,55 @@ describe("streamFromClient", () => {
     expect(p).toEqual({ nx: 0.25, ny: 0.5 });
   });
 
-  it("clamps points in the black bars and outside the element", () => {
+  it("returns null in the black bars and outside the element", () => {
     const r = rect(0, 0, 1000, 500);
-    expect(streamFromClient(10, 250, r, 1000, 1000)).toEqual({ nx: 0, ny: 0.5 });
-    expect(streamFromClient(990, 700, r, 1000, 1000)).toEqual({ nx: 1, ny: 1 });
-    expect(streamFromClient(-50, -50, r, 1000, 1000)).toEqual({ nx: 0, ny: 0 });
+    // 1:1 stream in 1000x500: picture spans x 250..750.
+    expect(streamFromClient(10, 250, r, 1000, 1000)).toBeNull();
+    expect(streamFromClient(990, 250, r, 1000, 1000)).toBeNull();
+    expect(streamFromClient(-50, -50, r, 1000, 1000)).toBeNull();
+    // 2:1 stream in 500x1000: picture spans y 375..625.
+    expect(streamFromClient(250, 100, rect(0, 0, 500, 1000), 1000, 500)).toBeNull();
+  });
+
+  it("maps the picture's own edges", () => {
+    const r = rect(0, 0, 1000, 500);
+    expect(streamFromClient(250, 0, r, 1000, 1000)).toEqual({ nx: 0, ny: 0 });
+    expect(streamFromClient(750, 500, r, 1000, 1000)).toEqual({ nx: 1, ny: 1 });
   });
 
   it("returns null while sizes are unknown", () => {
     expect(streamFromClient(1, 1, rect(0, 0, 0, 0), 1920, 1080)).toBeNull();
     expect(streamFromClient(1, 1, rect(0, 0, 100, 100), 0, 0)).toBeNull();
+  });
+});
+
+describe("clampedStreamFromClient", () => {
+  it("snaps points outside the picture to its nearest edge", () => {
+    const r = rect(0, 0, 1000, 500);
+    expect(clampedStreamFromClient(10, 250, r, 1000, 1000)).toEqual({ nx: 0, ny: 0.5 });
+    expect(clampedStreamFromClient(990, 700, r, 1000, 1000)).toEqual({ nx: 1, ny: 1 });
+    expect(clampedStreamFromClient(-50, -50, r, 1000, 1000)).toEqual({ nx: 0, ny: 0 });
+  });
+
+  it("returns null while sizes are unknown", () => {
+    expect(clampedStreamFromClient(1, 1, rect(0, 0, 0, 0), 1920, 1080)).toBeNull();
+  });
+});
+
+describe("isReleaseOnly", () => {
+  const LEFT = 1;
+  const RIGHT = 2;
+
+  it("sends the release of a button pressed inside", () => {
+    expect(isReleaseOnly(0, LEFT)).toBe(true);
+    expect(isReleaseOnly(LEFT, LEFT | RIGHT)).toBe(true);
+  });
+
+  it("sends nothing for a press, a move or an idle pointer outside", () => {
+    expect(isReleaseOnly(LEFT, 0)).toBe(false); // press outside
+    expect(isReleaseOnly(LEFT, LEFT)).toBe(false); // drag outside
+    expect(isReleaseOnly(0, 0)).toBe(false); // hover outside
+    expect(isReleaseOnly(LEFT | RIGHT, LEFT)).toBe(false); // second button pressed outside
   });
 });
 

@@ -44,8 +44,12 @@ export function useTouchInput(mouse: Mouse) {
     let state = initialGestureState();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let buttons = 0;
-    // Direct touch: where the pointer is, as fractions of the remote screen.
+    // Direct touch: the gesture's last position inside the picture, as fractions of the
+    // remote screen. Null while the gesture's anchor is outside it (a letterbox bar).
     let cursor: { nx: number; ny: number } | null = null;
+    // Direct touch: a press that landed outside the picture was dropped, so the rest of
+    // that drag and its release send nothing.
+    let pressDropped = false;
     const carry = createCarry();
 
     const config = (): GestureConfig => ({ mode: live.current.touchInput });
@@ -64,10 +68,14 @@ export function useTouchInput(mouse: Mouse) {
       const rect = video.getBoundingClientRect();
       switch (a.kind) {
         case "moveTo": {
+          if (pressDropped) return;
           const p = streamFromClient(a.x, a.y, rect, sw, sh);
-          if (!p) return;
-          cursor = p;
-          sendPosition();
+          if (p) {
+            cursor = p;
+            sendPosition();
+          } else if (!buttons) {
+            cursor = null; // an anchor in the bars: the press or click that follows is dropped
+          } // else a drag left the picture: it keeps the last position inside
           return;
         }
         case "move": {
@@ -85,10 +93,16 @@ export function useTouchInput(mouse: Mouse) {
           return;
         }
         case "button":
+          if (a.down && live.current.touchInput === "direct" && !cursor) pressDropped = true;
+          if (pressDropped) {
+            if (!a.down) pressDropped = false;
+            return;
+          }
           buttons = a.down ? buttons | BUTTON_BIT[a.button] : buttons & ~BUTTON_BIT[a.button];
           sendPosition();
           return;
         case "click":
+          if (live.current.touchInput === "direct" && !cursor) return;
           buttons |= BUTTON_BIT[a.button];
           sendPosition();
           buttons &= ~BUTTON_BIT[a.button];
@@ -139,6 +153,7 @@ export function useTouchInput(mouse: Mouse) {
     };
     const release = () => {
       dispatch({ type: "cancel", t: performance.now() });
+      pressDropped = false;
       if (buttons) {
         buttons = 0;
         sendPosition();

@@ -6,7 +6,7 @@ import Card from "@components/Card";
 import { ConfirmDialog } from "@components/ConfirmDialog";
 import TextArea from "@components/TextArea";
 import notifications from "@/notifications";
-import { streamFromClient, videoDisplayArea } from "@/utils/pointerMapping";
+import { clampedStreamFromClient, videoDisplayArea } from "@/utils/pointerMapping";
 import { m } from "@localizations/messages.js";
 
 interface Rect {
@@ -251,7 +251,7 @@ function OcrOverlayContent() {
     (clientX: number, clientY: number) => {
       if (!videoElement) return { x: 0, y: 0 };
 
-      const p = streamFromClient(
+      const p = clampedStreamFromClient(
         clientX,
         clientY,
         videoElement.getBoundingClientRect(),
