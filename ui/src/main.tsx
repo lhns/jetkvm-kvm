@@ -317,9 +317,7 @@ if (isOnDevice) {
     });
   }
 
-  router = createBrowserRouter(routeObjects, {
-    basename: import.meta.env.BASE_URL,
-  });
+  router = createBrowserRouter(routeObjects, { basename: import.meta.env.BASE_URL });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
