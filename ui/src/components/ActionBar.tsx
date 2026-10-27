@@ -330,6 +330,8 @@ export default function Actionbar({
                 title={isFullscreen ? m.action_bar_exit_fullscreen() : m.action_bar_fullscreen()}
                 labelClassName="hidden md:inline"
                 className={cx({ "rounded-sm border-r": isEmbedMode })}
+                // Android focuses a tapped button, which would blur the System keyboard's field.
+                onMouseDown={e => e.preventDefault()}
                 onClick={() => toggleFullscreen()}
               />
               {!isEmbedMode && (
