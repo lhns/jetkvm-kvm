@@ -8,13 +8,14 @@ import LogoBlueIcon from "@assets/logo-blue.svg";
 import LogoWhiteIcon from "@assets/logo-white.svg";
 import { useHidStore, useRTCStore, useUserStore } from "@hooks/stores";
 import Card from "@components/Card";
+import CloudSetupPopover from "@components/CloudSetupPopover";
 import Container from "@components/Container";
 import { LinkButton } from "@components/Button";
 import PeerConnectionStatusCard from "@components/PeerConnectionStatusCard";
 import USBStateStatus from "@components/USBStateStatus";
 import { CLOUD_API, DEVICE_API } from "@/ui.config";
 import api from "@/api";
-import { isOnDevice } from "@/main";
+import { isInCloud, isOnDevice } from "@/main";
 import { m } from "@localizations/messages.js";
 
 interface NavbarProps {
@@ -100,6 +101,7 @@ export default function DashboardNavbar({
                 )}
                 {isLoggedIn ? (
                   <>
+                    {isInCloud && <CloudSetupPopover />}
                     <hr className="h-5 w-px self-center border-none bg-slate-800/20 dark:bg-slate-300/20" />
                     <div className="relative inline-block text-left">
                       <Menu>
